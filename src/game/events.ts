@@ -51,28 +51,32 @@ export const EVENTS: GameEvent[] = [
     kind: "story",
     emoji: "🌙",
     title: "Midnight in your bedroom",
+    speaker: "partner",
     cond: () => false,
-    body: (s) => `It's 1:12am, ${s.founder}. Your laptop fan is louder than the fridge and you have $${s.cash.toLocaleString("en-US")} in the bank.\n\nYou've had an idea for a to-do app for months. Tonight you finally open an empty project.\n\nWalk to your desk and open your laptop any time. Your engineering work happens there.`,
-    choices: [{ label: "Start coding Pocket Todo", hint: "Begin the prototype", apply: (s) => { startProduct(s, "todo"); return "A blinking cursor. A fresh repo. An energy drink. You are officially building something."; } }],
+    body: (s) =>
+      `It's 1:12am. Your laptop fan is louder than the fridge. You have $${s.cash.toLocaleString("en-US")} in the bank and an idea you can't stop thinking about.\n\nThe door creaks open. ${PARTNER.name}, your college friend, walks in holding two coffees.\n\n@maya Still awake? Let me guess. The to-do app.\n\n@you It's not just a to-do app. It has dark mode.\n\n@maya Ha! Okay, I'm listening. Walk me through it.\n\n@you Right now it's only an idea. I need to sit down at my laptop and build the prototype first.\n\n@maya Then do it. Go to your desk, open the laptop dashboard and start. I'll be around.`,
+    choices: [{ label: "Start coding Pocket Todo", hint: "Begin the prototype", apply: (s) => { startProduct(s, "todo"); return "@maya Take your time. But not too much. I have a feeling about this one."; } }],
   },
   {
     id: "partner_offer",
     kind: "story",
     emoji: "🤝",
     title: "A knock at the door",
+    speaker: "partner",
     cond: (s) => !s.founded && !!building(s) && building(s)!.progress >= building(s)!.cost * 0.4 && cdOK(s, "partner"),
-    input: { label: "Company name", placeholder: "e.g. Pixel Forge" },
-    body: (s) => `${PARTNER.name}, your old college friend, is standing in the doorway holding two coffees.\n\n"I saw your demo on the group chat. This is good. Really good. I've saved some money and I know how to run a business. Can we create a company together? I'd put in $20,000 for 25%, and we'd use my family's garage as the first office."\n\nYour prototype is ${Math.round((building(s)!.progress / building(s)!.cost) * 100)}% done.`,
+    input: { label: "Name your company", placeholder: "e.g. Pixel Forge" },
+    body: (s) =>
+      `A knock at the door. It's ${PARTNER.name} again. Your prototype is ${Math.round((building(s)!.progress / building(s)!.cost) * 100)}% done.\n\n@maya I saw your demo on the group chat. This is good. Really good.\n\n@maya I've saved some money, and I know how to run a business. Can we create a company together?\n\n@maya I'd put in $20,000 for 25%, and we can use my family's garage as our first office.`,
     choices: [
       {
         label: "Yes, let's create a company",
-        hint: "Name it below. Maya invests $20,000 for 25%.",
+        hint: "Name it above. Maya invests $20,000 for 25%.",
         apply: (s, text) => {
           foundCompany(s, text ?? "");
-          return `${PARTNER.first}: "Welcome to ${s.company}! First problem: your app is only a prototype. You can't finish it alone. We need an application engineer. Come to my desk and we'll hire one."\n\nYou move into the garage. A new desk appears for ${PARTNER.first}.`;
+          return `@you Let's do it. Welcome to ${s.company}!\n\n@maya First problem: your app is still a prototype. You can't finish it alone. We need an application engineer.\n\n@maya Come to my desk in the garage. I'll show you how hiring works.`;
         },
       },
-      { label: "Let me think about it", hint: "She'll come back in a couple of weeks", apply: (s) => { s.cooldowns.partner = s.day + 14; return `${PARTNER.first}: "Take your time. But don't take too long."`; } },
+      { label: "Let me think about it", hint: "She'll come back in a couple of weeks", apply: (s) => { s.cooldowns.partner = s.day + 14; return `@maya Take your time. But don't take too long.`; } },
     ],
   },
   {
@@ -82,7 +86,7 @@ export const EVENTS: GameEvent[] = [
     emoji: "🧑‍💻",
     title: "The prototype is stuck",
     cond: (s) => s.founded && !hasRole(s, "dev") && !!building(s) && building(s)!.progress >= building(s)!.cost * 0.6 - 0.5,
-    body: () => `You've taken the prototype as far as one person can. The code works on your laptop, mostly. Parts of it are held together with comments that say "TODO fix later".\n\n${PARTNER.first}: "You need an application engineer. Walk to my desk, open the dashboard, and hire someone. The garage has two spare desks."`,
+    body: () => `You've taken the prototype as far as one person can. The code works on your laptop, mostly. Parts of it are held together with comments that say "TODO fix later".\n\n@maya You need an application engineer. Walk to my desk, open the dashboard, and hire someone. The garage has two spare desks.`,
     choices: [{ label: "Go find an engineer", apply: () => "You rub your eyes. For the first time, you're not alone in this." }],
   },
   {
@@ -92,7 +96,7 @@ export const EVENTS: GameEvent[] = [
     emoji: "📦",
     title: "The app is built. Now it needs a home.",
     cond: (s) => s.products.some((p) => p.status === "built"),
-    body: (s) => `The last feature is merged. ${s.products.find((p) => p.status === "built")?.name} works, but only on your machines.\n\n${PARTNER.first}: "Nobody can use it yet. We have to host it somewhere safe, fast, and online. That's a DevOps engineer's job. Hire one, then go to the DevOps desk and deploy."`,
+    body: (s) => `The last feature is merged. ${s.products.find((p) => p.status === "built")?.name} works, but only on your machines.\n\n@maya Nobody can use it yet. We have to host it somewhere safe, fast, and online. That's a DevOps engineer's job. Hire one, then walk to the DevOps desk and deploy.`,
     choices: [{ label: "Hire DevOps and deploy", apply: () => "You open the candidates list. One of them lists 'sleeps next to a server rack' as a hobby." }],
   },
   {

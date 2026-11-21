@@ -35,7 +35,7 @@ export function stationUnlocked(s: GameState, id: StationId): boolean {
 
 export function computeLayout(s: GameState): Layout {
   if (!s.founded) {
-    return { cols: 7, rows: 6, home: true, stations: [{ id: "you", ...STATION_INFO.you, label: "Your desk", x: 1, y: 2 }], desks: [], remote: [] };
+    return { cols: 9, rows: 7, home: true, stations: [{ id: "you", ...STATION_INFO.you, label: "Your desk", x: 2, y: 2 }], desks: [], remote: [] };
   }
   const cols = OFFICES[s.officeLevel].cols;
   const perRow = Math.max(2, Math.floor((cols - 1) / 2));

@@ -10,7 +10,9 @@ import Dashboard from "./Dashboards";
 import PersonCard from "./PersonCard";
 import TreeModal from "./TreeModal";
 import { useUI } from "@/store/useUI";
-import { EndScreen, EventModal, StartScreen, Toast } from "./Overlays";
+import { EndScreen, StartScreen, Toast } from "./Overlays";
+import Dialogue from "./Dialogue";
+import Hud from "./Hud";
 import Scene from "./Scene";
 import { useG } from "./ui";
 
@@ -38,6 +40,7 @@ export default function Game() {
       const t = e.target as HTMLElement;
       if (t && ["INPUT", "SELECT", "TEXTAREA"].includes(t.tagName)) return;
       const st = useGame.getState();
+      if (st.game?.event) return;
       if (e.key === " ") { e.preventDefault(); st.setSpeed(st.speed === 0 ? 1 : 0); }
       if (e.key === "1") st.setSpeed(1);
       if (e.key === "2") st.setSpeed(3);
@@ -55,74 +58,21 @@ export default function Game() {
 function Playing() {
   const g = useG();
   const dash = useUI((u) => u.dash);
-  const setTree = useUI((u) => u.setTree);
-  const speed = useGame((s) => s.speed);
-  const setSpeed = useGame((s) => s.setSpeed);
-  const d = deriveStats(g);
-  const net = d.revenue - d.burn;
   const hint = nextHint(g);
 
   return (
-    <div className="shell">
-      <header className="top">
-        <div className="brand">
-          <h1>{g.company || "Untitled project"}</h1>
-          <span className="dim small">{dateLabel(g.day)}</span>
-        </div>
-        <div className="top-actions">
-          <button className="btn" onClick={() => setTree(true)}>🌳 Company tree</button>
-          <div className="speed" role="group" aria-label="Game speed">
-            {[[0, "⏸"], [1, "1×"], [3, "3×"], [8, "8×"]].map(([v, l]) => (
-              <button key={v} aria-pressed={speed === v} onClick={() => setSpeed(v as number)}>{l}</button>
-            ))}
-          </div>
-        </div>
-      </header>
-
-      <section className="stats" aria-label="Company stats">
-        <Stat label="Cash" value={money(g.cash)} sub={`${net >= 0 ? "+" : ""}${money(net)}/day`} tone={g.cash < 0 ? "bad" : net < 0 ? "warn" : "good"} />
-        <Stat label="Users" value={num(totalUsers(g))} sub={`${money(d.revenue)}/day revenue`} />
-        <Stat label="Reputation" value={`${Math.round(g.rep)}`} sub="out of 100" />
-        <Stat label="Team" value={`${g.team.length + (g.founded ? 2 : 1)}`} sub={g.founded ? `${freeDesks(g)} free desks` : "just you"} />
-        <Stat label="Valuation" value={g.founded ? money(valuation(g)) : "—"} sub={g.founded ? `you own ${(g.equity * 100).toFixed(0)}%` : "no company yet"} />
-      </section>
-
-      {hint && <div className="hint" role="note">💡 {hint}</div>}
-
-      <div className="app">
-        <div className="col">
-          <Scene />
-          <section className="panel" aria-label="Company log">
-            <div className="panel-head"><h2>Journal</h2></div>
-            <ul className="log">
-              {g.log.slice(0, 14).map((l, i) => (
-                <li key={`${l.day}-${i}-${l.text}`} className={l.tone}>
-                  <span className="mono dim">D{l.day}</span> {l.text}
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
-        <aside className="panel side" aria-label="Dashboard">
-          {dash ? (
-            <Dashboard id={dash} />
-          ) : (
-            <div className="empty-dash">
-              <div className="big">🖥️</div>
-              <h2>No dashboard open</h2>
-              <p className="dim">Dashboards live on desks. Walk your avatar to a desk in the office, then press <b>Open dashboard</b>.</p>
-              <ul className="dim small desk-list">
-                <li>💻 <b>Your desk</b>: laptop, company overview, goals</li>
-                {g.founded && <li>🗂️ <b>Partner desk</b>: hiring, office, perks</li>}
-                {g.founded && <li>⌨️ <b>Engineering</b> · ☁️ <b>DevOps</b> · 🎨 <b>Design</b> · 📣 <b>Marketing</b> · 🎧 <b>Support</b> as they unlock</li>}
-              </ul>
-            </div>
-          )}
+    <div className="world">
+      <Scene />
+      <Hud />
+      {hint && !g.event && <div className="hint-float" role="note">💡 {hint}</div>}
+      {dash && !g.event && (
+        <aside className="drawer" aria-label="Dashboard">
+          <Dashboard id={dash} />
         </aside>
-      </div>
+      )}
       <PersonCard />
       <TreeModal />
-      <EventModal />
+      <Dialogue />
       <EndScreen />
       <Toast />
     </div>
