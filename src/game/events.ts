@@ -73,7 +73,7 @@ export const EVENTS: GameEvent[] = [
         hint: "Name it above. Maya invests $20,000 for 25%.",
         apply: (s, text) => {
           foundCompany(s, text ?? "");
-          return `@you Let's do it. Welcome to ${s.company}!\n\n@maya First problem: your app is still a prototype. You can't finish it alone. We need an application engineer.\n\n@maya Come to my desk in the garage. I'll show you how hiring works.`;
+          return `@you Let's do it. Welcome to ${s.company}!\n\n@maya First problem: your app is still a prototype. For every job from here on you have two options: do it yourself, or hire someone.\n\n@maya I'll handle HR: hiring, onboarding, and keeping the team happy. You decide who does what.`;
         },
       },
       { label: "Let me think about it", hint: "She'll come back in a couple of weeks", apply: (s) => { s.cooldowns.partner = s.day + 14; return `@maya Take your time. But don't take too long.`; } },
@@ -86,7 +86,7 @@ export const EVENTS: GameEvent[] = [
     emoji: "🧑‍💻",
     title: "The prototype is stuck",
     cond: (s) => s.founded && !hasRole(s, "dev") && !!building(s) && building(s)!.progress >= building(s)!.cost * 0.6 - 0.5,
-    body: () => `You've taken the prototype as far as one person can. The code works on your laptop, mostly. Parts of it are held together with comments that say "TODO fix later".\n\n@maya You need an application engineer. Walk to my desk, open the dashboard, and hire someone. The garage has two spare desks.`,
+    body: () => `You've taken the prototype as far as one person can. The code works on your laptop, mostly. Parts of it are held together with comments that say "TODO fix later".\n\n@maya You have two choices. Go to the Engineering desk and finish the code yourself, by hand, or let me hire an application engineer. I handle the HR side either way.`,
     choices: [{ label: "Go find an engineer", apply: () => "You rub your eyes. For the first time, you're not alone in this." }],
   },
   {
@@ -96,7 +96,7 @@ export const EVENTS: GameEvent[] = [
     emoji: "📦",
     title: "The app is built. Now it needs a home.",
     cond: (s) => s.products.some((p) => p.status === "built"),
-    body: (s) => `The last feature is merged. ${s.products.find((p) => p.status === "built")?.name} works, but only on your machines.\n\n@maya Nobody can use it yet. We have to host it somewhere safe, fast, and online. That's a DevOps engineer's job. Hire one, then walk to the DevOps desk and deploy.`,
+    body: (s) => `The last feature is merged. ${s.products.find((p) => p.status === "built")?.name} works, but only on your machines.\n\n@maya Nobody can use it yet. We have to host it somewhere safe, fast, and online. Walk to the DevOps desk. You can deploy it yourself, step by step, or I can hire a DevOps engineer to do it properly.`,
     choices: [{ label: "Hire DevOps and deploy", apply: () => "You open the candidates list. One of them lists 'sleeps next to a server rack' as a hobby." }],
   },
   {

@@ -41,6 +41,7 @@ export interface Product {
   version: number;
   updatePts: number;
   revenueTotal: number;
+  launchBugs?: number;
   launchedDay?: number;
 }
 
@@ -49,6 +50,7 @@ export interface Campaign {
   defId: string;
   productId: string;
   daysLeft: number;
+  boost?: number;
 }
 
 export interface LogEntry {
@@ -115,5 +117,6 @@ export interface GameState {
   negativeDays: number;
   ended: null | "ipo" | "bankrupt";
   peakUsers: number;
+  supportBoost?: { until: number; mult: number };
   seq: number;
 }

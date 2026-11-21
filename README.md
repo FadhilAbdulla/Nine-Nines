@@ -31,6 +31,20 @@ It's a story told in a full-screen world you walk around in. The camera follows 
 - Press **E** near a teammate to talk (1:1, raise, move to or from remote, let go). Use ☕ 📝 🚪 the same way.
 - **Company tree** (top bar): the org chart, with vacant departments shown as "not formed yet".
 
+### Do it yourself, or hire
+
+Every job has two options. At each department desk you can **do it yourself** or **hire an employee**:
+
+| Job | Do it yourself (hands-on) | Hire |
+| --- | --- | --- |
+| Engineering | Answer real coding questions (React, HTTP, SQL, git, security). Your score sets progress. | Application engineers code automatically |
+| DevOps | Run the deployment steps in the right order. Mistakes add launch bugs. Takes ~8 days. | A DevOps engineer deploys faster and adds server capacity |
+| Design | Make usability decisions. Good calls raise quality. | Designers raise quality every day |
+| Marketing | Plan each campaign: audience, channel, headline. Good plans boost its effectiveness. | Marketers boost every campaign |
+| Support | Reply to customer tickets. Good replies boost capacity for 8 days. | Support staff clear tickets daily |
+
+**Maya is your HR manager.** She sources and screens candidates (shown inline on every desk's dashboard), keeps everyone's morale +3, and runs check-ins when someone drops below 40.
+
 ### Office or remote
 
 Each hire is either **in office** (needs a free desk, benefits from perks) or **remote** (no desk or rent, salary −15%, but output −12%, lower morale and a bit more management load). Remote people show up on a video wall in the scene. You can switch anyone from their card.

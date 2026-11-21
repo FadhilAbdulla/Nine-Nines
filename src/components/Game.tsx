@@ -13,6 +13,7 @@ import { useUI } from "@/store/useUI";
 import { EndScreen, StartScreen, Toast } from "./Overlays";
 import Dialogue from "./Dialogue";
 import Hud from "./Hud";
+import HandsOn from "./HandsOn";
 import Scene from "./Scene";
 import { useG } from "./ui";
 
@@ -30,7 +31,7 @@ export default function Game() {
     if (!ready || !game || speed === 0) return;
     const ms = 900 / speed;
     const id = setInterval(() => {
-      if (!document.hidden) tick();
+      if (!document.hidden && !useUI.getState().hands) tick();
     }, ms);
     return () => clearInterval(id);
   }, [ready, !!game, speed, tick]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -72,6 +73,7 @@ function Playing() {
       )}
       <PersonCard />
       <TreeModal />
+      <HandsOn />
       <Dialogue />
       <EndScreen />
       <Toast />
@@ -99,8 +101,8 @@ function nextHint(g: GameState): string | null {
     return `Prototype ${Math.round((prod.progress / prod.cost) * 100)}% done. You're coding all night. Press 3 for 8× speed.`;
   }
   const building = g.products.find((p) => p.status === "building");
-  if (!d.hasEngineer && building) return "Your prototype is stuck at 60%. Walk to the Partner desk and hire an Application Engineer.";
-  if (g.products.some((p) => p.status === "built") && !d.hasOps) return "The app is built but not hosted. Hire a DevOps Engineer at the Partner desk.";
+  if (!d.hasEngineer && building) return "Your prototype is stuck at 60%. At the Engineering desk, code it yourself by hand or hire an Application Engineer.";
+  if (g.products.some((p) => p.status === "built") && !d.hasOps) return "The app is built but not hosted. Walk to the DevOps desk: deploy it yourself or hire a DevOps Engineer.";
   if (g.products.some((p) => p.status === "built")) return "Walk to the DevOps desk and deploy your app.";
   if (g.products.some((p) => p.status === "deploying")) return "DevOps is deploying your app. Almost live!";
   const live = g.products.filter((p) => p.status === "live");

@@ -1,4 +1,4 @@
-import { CAMPAIGNS, DECOR, FIRST, IDEAS, LAST, OFFICES, ROLES, TOOLS, TRAITS } from "./data";
+import { CAMPAIGNS, DECOR, FIRST, IDEAS, LAST, OFFICES, PARTNER, ROLES, TOOLS, TRAITS } from "./data";
 import { pickEvent } from "./events";
 import type { Background, Candidate, Employee, GameState, Look, Role } from "./types";
 import { clamp, log, pick, rnd, totalUsers, uid } from "./util";
@@ -82,7 +82,7 @@ export function derive(s: GameState) {
   const designPts = ((f === "code" ? 1.2 : 0) + by("designer").reduce((a, e) => a + e.skill * 0.8 * mf(e), 0)) * (1 + fx.design) * prodMult;
   const mktPower =
     (1 + by("marketer").reduce((a, e) => a + e.skill * 0.07 * mf(e), 0)) * (1 + fx.mkt) * (f === "market" ? 1.35 : 1) * (s.background === "marketer" ? 1.2 : 1) * prodMult;
-  const supportCap = (8 + (f === "support" ? 25 : 0) + by("support").reduce((a, e) => a + e.skill * 22 * mf(e), 0)) * (1 + fx.support);
+  const supportCap = (8 + (f === "support" ? 25 : 0) + by("support").reduce((a, e) => a + e.skill * 22 * mf(e), 0)) * (1 + fx.support) * (s.supportBoost && s.supportBoost.until >= s.day ? s.supportBoost.mult : 1);
 
   let tickets = 0;
   let revenue = 0;
@@ -174,7 +174,7 @@ export function tick(s: GameState) {
     for (const c of s.campaigns) {
       if (c.productId !== p.id) continue;
       const def = CAMPAIGNS.find((x) => x.id === c.defId)!;
-      marketing += def.upd * d.mktPower * (0.5 + p.quality / 100) * room * thr;
+      marketing += def.upd * d.mktPower * (c.boost ?? 1) * (0.5 + p.quality / 100) * room * thr;
     }
     const churnRate = 0.006 + p.bugs * 0.0004 + (1 - d.coverage) * 0.012 + Math.max(0, 50 - p.quality) * 0.0001 + (d.load > 1 ? Math.min(0.08, (d.load - 1) * 0.05) : 0);
     p.users = Math.max(0, p.users + discovery + word + marketing - p.users * churnRate);
@@ -187,12 +187,16 @@ export function tick(s: GameState) {
   s.campaigns = s.campaigns.filter((c) => c.daysLeft > 0);
 
   // people
-  const baseMorale = 58 + d.fx.morale - d.overload * 4 + (s.founderFocus === "manage" ? 5 : 0) + (s.cash < 0 ? -10 : 0);
+  const baseMorale = 58 + (s.founded ? 3 : 0) + d.fx.morale - d.overload * 4 + (s.founderFocus === "manage" ? 5 : 0) + (s.cash < 0 ? -10 : 0);
   for (const e of [...s.team]) {
     const mkt = salaryFor(e.role, e.skill) * (e.remote ? 0.85 : 1);
     const payBonus = e.salary > mkt * 1.05 ? 6 : e.salary < mkt * 0.9 ? -8 : 0;
     const target = clamp(baseMorale + payBonus + (e.trait === "Night owl" ? -3 : 0) - (e.remote ? 4 + d.fx.morale * 0.5 : 0), 5, 100);
     e.morale = clamp(e.morale + (target - e.morale) * 0.04, 0, 100);
+    if (s.founded && s.day % 10 === 0 && e.morale < 40) {
+      e.morale = clamp(e.morale + 10, 0, 100);
+      log(s, `${PARTNER.first} (HR) had a check-in with ${e.name}. They feel better.`, "info");
+    }
     e.lowDays = e.morale < 28 ? e.lowDays + 1 : 0;
     if (e.lowDays >= 12) {
       s.team = s.team.filter((x) => x.id !== e.id);
@@ -242,7 +246,7 @@ function launch(s: GameState, p: (typeof s.products)[number]) {
   const d = derive(s);
   p.status = "live";
   p.quality = clamp(22 + 55 * Math.min(1, p.designProgress / p.cost), 0, 85);
-  p.bugs = 30 * (1 - d.fx.bugs);
+  p.bugs = Math.min(100, 30 * (1 - d.fx.bugs) + (p.launchBugs ?? 0));
   p.users = 8 + s.rep * 2;
   p.launchedDay = s.day;
   p.updatePts = 0;
@@ -346,6 +350,84 @@ export function deployProduct(s: GameState, id: string): string | null {
   p.status = "deploying";
   p.deployLeft = Math.max(2, 8 - best);
   log(s, `DevOps started deploying ${p.name} (${p.deployLeft} days).`, "info");
+  return null;
+}
+
+export function deployMyself(s: GameState, id: string, mistakes: number): string | null {
+  const p = s.products.find((x) => x.id === id);
+  if (!p || p.status !== "built") return "Nothing to deploy.";
+  const cost = deployCost(p);
+  if (s.cash < cost) return "Not enough cash for hosting setup.";
+  s.cash -= cost;
+  p.status = "deploying";
+  p.deployLeft = 8;
+  p.launchBugs = Math.min(30, mistakes * 7);
+  log(s, `You deployed ${p.name} yourself${mistakes ? ` (${mistakes} mistake${mistakes > 1 ? "s" : ""}, extra launch bugs)` : " flawlessly"}.`, mistakes ? "info" : "good");
+  return null;
+}
+
+const onCooldown = (s: GameState, k: string) => (s.cooldowns[k] ?? 0) > s.day;
+
+export function handsOnCooldown(s: GameState, kind: string): number {
+  return Math.max(0, (s.cooldowns[`hands:${kind}`] ?? 0) - s.day);
+}
+
+export function codeHandsOn(s: GameState, score: number): string | null {
+  const p = s.products.find((x) => x.id === s.focusId);
+  if (!p) return "Pick a product to focus on first.";
+  const d = derive(s);
+  const pts = (6 + 14 * score) * (1 + d.fx.dev);
+  s.cooldowns["hands:code"] = s.day + 2;
+  if (p.status === "building") {
+    p.progress = Math.min(p.cost, p.progress + pts);
+    p.designProgress = Math.min(p.cost, p.designProgress + pts * 0.1);
+    if (p.progress >= p.cost) {
+      p.status = "built";
+      log(s, `🛠️ ${p.name} is built. It still needs to be hosted.`, "story");
+    }
+  } else if (p.status === "live") {
+    p.updatePts += pts;
+    p.bugs = clamp(p.bugs - pts * 0.2, 0, 100);
+  } else return "That product is already built.";
+  log(s, `You coded by hand (${Math.round(score * 100)}% clean): +${pts.toFixed(0)} dev points on ${p.name}.`, score >= 0.67 ? "good" : "info");
+  return null;
+}
+
+export function designHandsOn(s: GameState, score: number): string | null {
+  const p = s.products.find((x) => x.id === s.focusId);
+  if (!p) return "Pick a product to focus on first.";
+  const d = derive(s);
+  s.cooldowns["hands:design"] = s.day + 3;
+  if (p.status === "building") p.designProgress = Math.min(p.cost, p.designProgress + (6 + 14 * score) * (1 + d.fx.design));
+  else if (p.status === "live") p.quality = clamp(p.quality + (1 + 5 * score) * (1 + d.fx.design), 0, 100);
+  else return "Design needs a product in development or live.";
+  log(s, `You designed the UX yourself (${Math.round(score * 100)}% good decisions) for ${p.name}.`, score >= 0.67 ? "good" : "info");
+  return null;
+}
+
+export function supportHandsOn(s: GameState, score: number): string | null {
+  s.cooldowns["hands:support"] = s.day + 4;
+  s.supportBoost = { until: s.day + 8, mult: 1.4 + score * 1.2 };
+  s.rep = clamp(s.rep + score * 1.5, 0, 100);
+  log(s, `You answered tickets personally (${Math.round(score * 100)}% great replies). Support is stronger for 8 days.`, score >= 0.67 ? "good" : "info");
+  return null;
+}
+
+export function marketHandsOn(s: GameState, defId: string, productId: string, score: number): string | null {
+  const err = runCampaign(s, defId, productId);
+  if (err) return err;
+  const c = s.campaigns[s.campaigns.length - 1];
+  c.boost = 0.75 + score * 0.6;
+  log(s, `You planned the campaign yourself: ×${c.boost.toFixed(2)} effectiveness.`, score >= 0.67 ? "good" : "info");
+  return null;
+}
+
+export function sourceRole(s: GameState, role: Role): string | null {
+  const cost = 150 + s.officeLevel * 300;
+  if (s.cash < cost) return "Not enough cash for sourcing.";
+  s.cash -= cost;
+  for (let i = 0; i < 3; i++) s.candidates.push(makeCandidate(s, role));
+  log(s, `${PARTNER.first} sourced ${ROLES[role].label} candidates.`, "info");
   return null;
 }
 

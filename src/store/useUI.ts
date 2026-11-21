@@ -7,6 +7,9 @@ interface UI {
   dash: StationId | null; // open dashboard
   talk: string | null; // employee card
   tree: boolean;
+  hands: null | { kind: "code" | "deploy" | "design" | "market" | "support"; defId?: string; productId?: string };
+  openHands: (h: NonNullable<UI["hands"]>) => void;
+  closeHands: () => void;
   setAt: (s: StationId | null) => void;
   openDash: (s: StationId) => void;
   closeDash: () => void;
@@ -19,6 +22,9 @@ export const useUI = create<UI>((set) => ({
   dash: null,
   talk: null,
   tree: false,
+  hands: null,
+  openHands: (hands) => set({ hands }),
+  closeHands: () => set({ hands: null }),
   setAt: (at) => set((u) => ({ at, dash: at && u.dash === at ? u.dash : null })),
   openDash: (dash) => set({ dash }),
   closeDash: () => set({ dash: null }),
