@@ -34,7 +34,7 @@ export const useUI = create<UI>((set) => ({
   hands: null,
   openHands: (hands) => set({ hands }),
   closeHands: () => set({ hands: null }),
-  setAt: (at) => set((u) => ({ at, dash: at && u.dash === at ? u.dash : null })),
+  setAt: (at) => set({ at }),
   openDash: (dash) => set({ dash }),
   closeDash: () => set({ dash: null }),
   setTalk: (talk) => set({ talk }),

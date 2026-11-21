@@ -307,7 +307,7 @@ export default function Scene() {
       // nearest interactable
       const { x, y } = pos.current;
       let best: Near | null = null;
-      let bd = 46;
+      let bd = 40;
       for (const s of L.stations) {
         const d = dist(x, y, s.x * TILE, s.y * TILE + TILE * 0.96, TILE * 1.8, TILE * 1.02);
         if (d < bd) { bd = d; best = { kind: "station", id: s.id, label: (s.id === "you" && !live.current.g.founded ? "Your laptop" : s.label) }; }
@@ -330,8 +330,10 @@ export default function Scene() {
       const openId = useUI.getState().dash;
       if (openId) {
         const st = L.stations.find((s0) => s0.id === openId);
-        const away = !st || dist(x, y, st.x * TILE, st.y * TILE + TILE * 0.96, TILE * 1.8, TILE * 1.02) > 30;
+        const away = !st || dist(x, y, st.x * TILE, st.y * TILE + TILE * 0.96, TILE * 1.8, TILE * 1.02) > 50;
         if (away) useUI.getState().closeDash();
+        // while it's open, a colleague walking past doesn't steal focus from this desk
+        else best = { kind: "station", id: st.id, label: (st.id === "you" && !live.current.g.founded ? "Your laptop" : st.label) };
       }
       const sig = best ? `${best.kind}:${"id" in best ? best.id : best.key}` : "";
       if (sig !== lastNear) { lastNear = sig; setNear(best); }
