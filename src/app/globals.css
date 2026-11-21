@@ -586,3 +586,11 @@ kbd { font-family: var(--f-mono); font-size: 11px; background: var(--bg-3); bord
 .attendee .tick { position: absolute; top: -4px; right: 4px; font-size: 14px; }
 .goout-opt:disabled { opacity: .55; cursor: not-allowed; }
 .goout-opt .why { color: var(--warn, #fbbf24); }
+
+/* v12: daily cash flow in the HUD */
+.cash-flow { display: grid; gap: 0; line-height: 1.25; text-align: left; }
+.cash-flow .cf-in { color: #52d6a0; font-weight: 700; }
+.cash-flow .cf-out { color: #ff8585; font-weight: 700; }
+.cash-flow .cf-net { font-size: 11px; opacity: .85; border-top: 1px solid rgba(255,255,255,.15); margin-top: 1px; padding-top: 1px; }
+.hud-cash { align-items: center; }
+.cash-flow .cf-in, .cash-flow .cf-out { font-size: 13px; }
