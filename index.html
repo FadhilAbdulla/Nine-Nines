@@ -1,0 +1,970 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nine Nines</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: a blueprint drafting table. Stats strip on top, the request path drawn left to right as a system diagram, the team and goals pinned to the right margin. */
+:root {
+  --paper: #0d2136;
+  --paper-2: #122c47;
+  --paper-3: #18385a;
+  --grid: rgba(150, 196, 236, 0.09);
+  --line: rgba(150, 196, 236, 0.22);
+  --ink: #e9f2fa;
+  --ink-dim: #93b2cc;
+  --accent: #7cd0ff;
+  --accent-ink: #062033;
+  --ok: #5ad69b;
+  --warn: #ffc65c;
+  --bad: #ff6f6f;
+  --f-display: "Bricolage Grotesque", "Space Grotesk", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { min-height: 100%; }
+body {
+  background-color: var(--paper);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--ink);
+  font-family: var(--f-body);
+  font-size: 14px;
+  line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 32px;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .45; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+.mono { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); }
+
+/* ---------- top bar ---------- */
+.top { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; margin-bottom: 16px; }
+.brand { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; margin-right: auto; min-width: 0; }
+.brand h1 { white-space: nowrap; font-size: 26px; font-weight: 800; letter-spacing: -.01em; }
+.brand .co { color: var(--ink-dim); font-size: 13px; min-width: 0; }
+.clock { font-family: var(--f-mono); font-size: 13px; color: var(--ink-dim); }
+.speed { display: flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.speed button { background: transparent; border: 0; padding: 6px 12px; font-family: var(--f-mono); font-size: 13px; }
+.speed button + button { border-left: 1px solid var(--line); }
+.speed button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
+.stat { background: var(--paper-2); padding: 10px 14px; min-width: 0; }
+.stat .v { font-family: var(--f-mono); font-variant-numeric: tabular-nums; font-size: 20px; font-weight: 600; margin-top: 2px; white-space: nowrap; }
+.stat .s { font-family: var(--f-mono); font-size: 12px; color: var(--ink-dim); white-space: nowrap; }
+.good { color: var(--ok); } .warnc { color: var(--warn); } .badc { color: var(--bad); }
+
+/* ---------- main layout ---------- */
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+@media (max-width: 1000px) { .app { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--paper-2); border: 1px solid var(--line); border-radius: 8px; padding: 14px; min-width: 0; }
+.panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.panel-head h2 { font-size: 17px; font-weight: 700; }
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+/* ---------- effects chips ---------- */
+.effects { display: flex; flex-wrap: wrap; gap: 6px; min-height: 26px; }
+.chip { font-family: var(--f-mono); font-size: 12px; padding: 3px 9px; border-radius: 999px; border: 1px solid currentColor; max-width: 100%; }
+.chip.bad { color: var(--bad); } .chip.warn { color: var(--warn); } .chip.ok { color: var(--ok); } .chip.info { color: var(--accent); }
+.effects .none { color: var(--ink-dim); font-size: 13px; }
+
+/* ---------- pipeline diagram ---------- */
+.diagram { overflow-x: auto; padding-top: 10px; padding-bottom: 4px; }
+.pipe { display: flex; align-items: stretch; min-width: 860px; }
+.node { flex: 1 1 0; min-width: 118px; border: 1.5px solid var(--line); border-radius: 8px; padding: 10px; background: var(--paper); display: flex; flex-direction: column; gap: 6px; position: relative; transition: border-color .2s; }
+.node.hot { border-color: var(--warn); }
+.node.over { border-color: var(--bad); box-shadow: 0 0 0 3px rgba(255, 111, 111, .15); }
+.node .nm { font-family: var(--f-display); font-weight: 700; font-size: 14px; line-height: 1.15; }
+.node .cfg { font-size: 12px; color: var(--ink-dim); min-height: 2.6em; }
+.node .ld { font-family: var(--f-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.node .cost { font-family: var(--f-mono); font-size: 11px; color: var(--ink-dim); }
+.meter { height: 6px; border-radius: 3px; background: var(--paper-3); overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .25s, background-color .25s; }
+.btns { display: flex; gap: 6px; margin-top: auto; }
+.btns button { flex: 1; background: var(--paper-3); border: 1px solid var(--line); border-radius: 5px; padding: 5px 0; font-family: var(--f-mono); font-size: 14px; }
+.btns button:not(:disabled):hover { border-color: var(--accent); color: var(--accent); }
+.tag { position: absolute; top: -9px; right: 8px; font-size: 10px; letter-spacing: .08em; text-transform: uppercase; background: var(--bad); color: var(--paper); padding: 1px 6px; border-radius: 3px; font-weight: 600; }
+.tag[hidden] { display: none; }
+.flow { flex: 0 0 34px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 4px; }
+.flow .wire { width: 100%; height: 6px; background-image: radial-gradient(circle, var(--accent) 1.6px, transparent 2.2px); background-size: 9px 6px; animation: flowx var(--dur, 1.5s) linear infinite; opacity: .9; }
+.flow.hot .wire { background-image: radial-gradient(circle, var(--bad) 1.6px, transparent 2.2px); }
+.flow .rps { font-family: var(--f-mono); font-size: 10px; color: var(--ink-dim); white-space: nowrap; }
+@keyframes flowx { from { background-position: 0 0; } to { background-position: 9px 0; } }
+.users-node .big { font-family: var(--f-mono); font-size: 18px; font-weight: 600; }
+.atk { color: var(--bad); font-family: var(--f-mono); font-size: 12px; }
+
+@media (max-width: 640px) {
+  .pipe { flex-direction: column; min-width: 0; }
+  .node { min-width: 0; }
+  .node .cfg { min-height: 0; }
+  .flow { flex: 0 0 30px; flex-direction: row; }
+  .flow .wire { width: 6px; height: 100%; background-size: 6px 9px; animation-name: flowy; }
+  @keyframes flowy { from { background-position: 0 0; } to { background-position: 0 9px; } }
+}
+@media (prefers-reduced-motion: reduce) { .flow .wire { animation: none; } .meter i { transition: none; } }
+
+.bottleneck-line { margin-top: 12px; font-size: 13px; color: var(--ink-dim); }
+.bottleneck-line b { color: var(--ink); font-weight: 600; }
+
+/* ---------- chart ---------- */
+.chart-wrap { position: relative; width: 100%; height: 170px; }
+canvas { display: block; width: 100%; height: 100%; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-dim); }
+.legend span::before { content: ""; display: inline-block; width: 10px; height: 3px; margin-right: 6px; vertical-align: middle; background: var(--c); }
+
+/* ---------- sidebar ---------- */
+.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: -4px -4px 12px; }
+.tabs button { background: none; border: 0; padding: 8px 10px; border-bottom: 2px solid transparent; color: var(--ink-dim); font-weight: 500; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+.list { display: flex; flex-direction: column; gap: 10px; }
+.item { border: 1px solid var(--line); border-radius: 6px; padding: 10px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; align-items: start; background: var(--paper); }
+.item .t { font-weight: 600; }
+.item .d { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink-dim); }
+.item .m { font-family: var(--f-mono); font-size: 12px; color: var(--ink-dim); grid-column: 1 / -1; }
+.item .count { font-family: var(--f-mono); font-size: 12px; color: var(--accent); }
+.act { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 5px; padding: 5px 10px; font-weight: 600; font-size: 13px; white-space: nowrap; }
+.act.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.owned { font-family: var(--f-mono); font-size: 12px; color: var(--ok); white-space: nowrap; }
+.goal { border: 1px solid var(--line); border-radius: 6px; padding: 10px; background: var(--paper); }
+.goal.done { border-color: var(--ok); }
+.goal .row { display: flex; justify-content: space-between; gap: 8px; }
+.goal .req { font-family: var(--f-mono); font-size: 12px; color: var(--ink-dim); margin-top: 4px; display: flex; flex-direction: column; gap: 2px; }
+.goal .req .met { color: var(--ok); }
+.log { display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; font-size: 13px; }
+.log div { border-left: 2px solid var(--line); padding-left: 8px; }
+.log div.bad { border-color: var(--bad); } .log div.ok { border-color: var(--ok); } .log div.tip { border-color: var(--accent); }
+.log time { font-family: var(--f-mono); font-size: 11px; color: var(--ink-dim); margin-right: 6px; }
+.note { font-size: 12.5px; color: var(--ink-dim); margin: 0 0 10px; }
+
+/* ---------- overlays ---------- */
+.overlay { position: fixed; inset: 0; background: rgba(4, 14, 25, .78); display: flex; align-items: center; justify-content: center; padding: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(16px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); z-index: 50; overflow-y: auto; }
+.card { background: var(--paper-2); border: 1px solid var(--line); border-radius: 10px; width: min(560px, 100%); padding: 20px; position: relative; max-height: 100%; overflow-y: auto; }
+.card.sev-bad { border-top: 4px solid var(--bad); }
+.card.sev-warn { border-top: 4px solid var(--warn); }
+.card.sev-ok { border-top: 4px solid var(--ok); }
+.card h2 { font-size: 22px; font-weight: 800; margin: 4px 0 8px; }
+.card p { margin: 0 0 14px; color: var(--ink-dim); }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.opt { text-align: left; background: var(--paper); border: 1px solid var(--line); border-radius: 7px; padding: 10px 12px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; }
+.opt:not(:disabled):hover { border-color: var(--accent); }
+.opt .ot { font-weight: 600; }
+.opt .oc { font-family: var(--f-mono); font-size: 12px; color: var(--warn); }
+.opt .od { grid-column: 1 / -1; font-size: 12.5px; color: var(--ink-dim); }
+.opt .or { grid-column: 1 / -1; font-size: 12px; color: var(--bad); font-family: var(--f-mono); }
+
+.start .card { width: min(820px, 100%); }
+.hero-t { font-size: clamp(34px, 6vw, 56px); font-weight: 800; letter-spacing: -.02em; line-height: 1; }
+.hero-t em { font-style: normal; color: var(--accent); }
+.lede { color: var(--ink-dim); max-width: 60ch; margin: 10px 0 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; }
+.field input { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; font: inherit; color: var(--ink); max-width: 320px; }
+.roles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-bottom: 18px; }
+.role { text-align: left; background: var(--paper); border: 1.5px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.role[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(124, 208, 255, .15); }
+.role .rn { font-family: var(--f-display); font-weight: 700; font-size: 15px; }
+.role .rb { font-size: 12.5px; color: var(--ink-dim); }
+.role ul { margin: 0; padding-left: 16px; font-size: 12px; display: flex; flex-direction: column; gap: 2px; }
+.start-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.big-btn { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 7px; padding: 10px 20px; font-weight: 600; font-size: 15px; }
+.big-btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.how { margin-top: 18px; border-top: 1px dashed var(--line); padding-top: 14px; font-size: 13px; color: var(--ink-dim); display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; }
+.how b { color: var(--ink); display: block; font-weight: 600; }
+
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(20px + env(safe-area-inset-bottom, 0px)); background: var(--ok); color: var(--paper); padding: 10px 16px; border-radius: 7px; font-weight: 600; z-index: 60; max-width: calc(100% - 32px); }
+.endstats { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 16px; }
+.endstats div { background: var(--paper); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+.endstats b { display: block; font-family: var(--f-mono); font-size: 18px; }
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div class="brand"><h1>Nine Nines</h1><span class="co" id="coName"></span></div>
+  <span class="clock" id="clock">Day 1 · 00:00</span>
+  <div class="speed" role="group" aria-label="Game speed">
+    <button id="sp0" data-speed="0" aria-pressed="false" title="Pause (space)">❚❚</button>
+    <button id="sp1" data-speed="1" aria-pressed="true">1×</button>
+    <button id="sp2" data-speed="3" aria-pressed="false">3×</button>
+    <button id="sp3" data-speed="8" aria-pressed="false">8×</button>
+  </div>
+</div>
+
+<div class="stats">
+  <div class="stat"><div class="label">Cash</div><div class="v" id="stCash"></div><div class="s" id="stNet"></div></div>
+  <div class="stat"><div class="label">Users</div><div class="v" id="stUsers"></div><div class="s" id="stGrowth"></div></div>
+  <div class="stat"><div class="label">Traffic</div><div class="v" id="stRps"></div><div class="s" id="stCap"></div></div>
+  <div class="stat"><div class="label">Availability 24h</div><div class="v" id="stAvail"></div><div class="s" id="stErr"></div></div>
+  <div class="stat"><div class="label">Latency p95</div><div class="v" id="stLat"></div><div class="s">target under 250 ms</div></div>
+  <div class="stat"><div class="label">Reputation</div><div class="v" id="stRep"></div><div class="s" id="stRepS"></div></div>
+</div>
+
+<div class="app">
+  <div class="col">
+    <section class="panel">
+      <div class="panel-head"><h2>Request path</h2><span class="label">Scale each tier with − and +</span></div>
+      <div class="effects" id="effects"></div>
+      <div class="diagram" style="margin-top:2px"><div class="pipe" id="pipe"></div></div>
+      <div class="bottleneck-line" id="bneck"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-head"><h2>Traffic, last 72 hours</h2>
+        <div class="legend"><span style="--c: var(--accent)">Requests/s</span><span style="--c: var(--ink-dim)">Max capacity</span><span style="--c: var(--bad)">Failed requests</span></div>
+      </div>
+      <div class="chart-wrap"><canvas id="chart"></canvas></div>
+    </section>
+  </div>
+  <aside class="panel">
+    <div class="tabs" role="tablist">
+      <button role="tab" data-tab="team" aria-selected="true" id="tab-team">Team</button>
+      <button role="tab" data-tab="upgrades" aria-selected="false" id="tab-upgrades">Upgrades</button>
+      <button role="tab" data-tab="goals" aria-selected="false" id="tab-goals">Goals</button>
+      <button role="tab" data-tab="log" aria-selected="false" id="tab-log">Log</button>
+    </div>
+    <div data-pane="team"><p class="note" id="teamNote"></p><div class="list" id="staffList"></div></div>
+    <div data-pane="upgrades" hidden><p class="note">One-time purchases. Some need a specialist on the team.</p><div class="list" id="upList"></div></div>
+    <div data-pane="goals" hidden><div class="list" id="goalList"></div></div>
+    <div data-pane="log" hidden><div class="log" id="log"></div></div>
+  </aside>
+</div>
+
+<div class="overlay start" id="startScreen">
+  <div class="card">
+    <div class="label">A system design management game</div>
+    <h1 class="hero-t">Keep the site up.<br><em>Grow the firm.</em></h1>
+    <p class="lede">You run engineering at a young tech company. Traffic grows every day. Scale the architecture before it breaks, handle outages and attacks, hire the specialists you need, and take the company public.</p>
+    <div class="field"><label class="label" for="coInput">Company name</label><input id="coInput" maxlength="28" value="Lumen Systems"></div>
+    <div class="label" style="margin-bottom:8px">Pick your role</div>
+    <div class="roles" role="radiogroup" id="roles"></div>
+    <div class="start-btns">
+      <button class="big-btn" id="startBtn">Start company</button>
+      <button class="big-btn ghost" id="continueBtn" hidden>Continue saved game</button>
+    </div>
+    <div class="how">
+      <div><b>Scale the request path</b>Add servers, a CDN, a cache or database replicas. Every tier costs money each hour.</div>
+      <div><b>Handle incidents</b>Attacks, bad deploys and outages pause the game. Specialists unlock better responses.</div>
+      <div><b>Hit the goals</b>Reach user and uptime targets to raise funding. Pass a SOC 2 audit and reach 99.9% to IPO.</div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="modal" hidden><div class="card" id="modalCard"></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+'use strict';
+const $ = (s, r = document) => r.querySelector(s);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rnd = (a, b) => a + Math.random() * (b - a);
+const fmt = n => { n = Math.max(0, n); return n >= 1e6 ? (n / 1e6).toFixed(2) + 'M' : n >= 1e5 ? Math.round(n / 1e3) + 'k' : n >= 1e3 ? (n / 1e3).toFixed(1) + 'k' : Math.round(n).toString(); };
+const money = n => (n < 0 ? '−' : '') + '$' + Math.abs(Math.round(n)).toLocaleString('en-US');
+const pct = (x, d = 2) => (x * 100).toFixed(d) + '%';
+
+/* ---------------- game data ---------------- */
+const RPS_PER_USER = 0.04;      // requests/s per user at average load
+const REV_PER_RPS_HOUR = 0.75;   // $ earned per successful request/s sustained for an hour
+
+const ROLES = {
+  se:  { name: 'Solutions Engineer', blurb: 'You design systems that customers pay for.', perks: ['Enterprise clients offer you capacity contracts', 'Infrastructure costs 10% less'] },
+  sre: { name: 'Site Reliability Engineer', blurb: 'You keep the pager quiet.', perks: ['Incidents clear 25% faster', 'Counts as an SRE for incident responses', 'Monitoring comes installed'] },
+  sec: { name: 'Security Engineer', blurb: 'You think like an attacker.', perks: ['Breaches are 40% less likely', 'Counts as a security engineer for responses', 'Firewall costs half'] },
+  ceo: { name: 'Founder & CEO', blurb: 'You raise money and build the team.', perks: ['Start with $6,000 more', 'Salaries cost 20% less', 'Growth marketers work 50% better'] },
+};
+
+const STAFF = {
+  sre:     { name: 'Site Reliability Engineer', salary: 18, fee: 1500, max: 3, desc: 'Halves how long incidents last. Unlocks autoscaling and SRE responses.' },
+  sec:     { name: 'Security Engineer',         salary: 20, fee: 2000, max: 2, desc: 'Each one halves breach risk. Unlocks security responses and the SOC 2 audit.' },
+  dba:     { name: 'Database Administrator',    salary: 16, fee: 1500, max: 2, desc: '+30% database capacity each. Unlocks database responses.' },
+  backend: { name: 'Backend Engineer',          salary: 15, fee: 1000, max: 4, desc: '+10% app server throughput each, and new features bring users.' },
+  growth:  { name: 'Growth Marketer',           salary: 12, fee: 800,  max: 3, desc: 'Brings in more new users every hour.' },
+  sales:   { name: 'Enterprise Account Exec',   salary: 14, fee: 1200, max: 2, desc: 'Finds enterprise clients who pay for guaranteed capacity.' },
+};
+
+const UPGRADES = {
+  monitoring: { name: 'Monitoring & alerting',    cost: 1500, upkeep: 3,  desc: 'Incidents clear 25% faster because you see them sooner.' },
+  tls:        { name: 'Certificate automation',   cost: 600,  upkeep: 0,  desc: 'TLS certificates renew themselves. No more expiry outages.' },
+  canary:     { name: 'Canary deploys',           cost: 2500, upkeep: 2,  desc: 'Bad releases roll back on their own before most users notice.' },
+  waf:        { name: 'Web application firewall', cost: 3000, upkeep: 5,  desc: 'Filters 70% of attack traffic and cuts breach risk by 40%.' },
+  autoscale:  { name: 'App server autoscaling',   cost: 3500, upkeep: 0,  req: 'sre', desc: 'Adds and removes app servers to keep them under 75% load.' },
+  multizone:  { name: 'Multi-zone redundancy',    cost: 8000, upkeep: 20, desc: 'A cloud zone outage costs you no capacity.' },
+  soc2:       { name: 'SOC 2 audit',              cost: 9000, upkeep: 0,  req: 'sec', desc: 'Required to go public. Enterprise contracts pay 50% more.' },
+};
+
+const CDN_LV   = [{ l: 'Off', v: 0, cost: 0 }, { l: 'Basic edge', v: .35, cost: 3 }, { l: 'Pro edge', v: .55, cost: 7 }, { l: 'Global edge', v: .7, cost: 14 }];
+const CACHE_LV = [{ l: 'None', v: 0, cost: 0 }, { l: 'Single node', v: .5, cost: 4 }, { l: 'Primary + replica', v: .7, cost: 9 }, { l: 'Sharded cluster', v: .85, cost: 18 }];
+const LB_CAP = 1500, LB_COST = 2, APP_CAP = 120, APP_COST = 4, DB_PRI = 220, DB_REP = 160, DB_PRI_COST = 10, DB_REP_COST = 7;
+
+const GOALS = [
+  { id: 'seed',  name: 'Seed round',  users: 5000,   avail: 0,     reward: 15000,  text: 'Angel investors like what they see.' },
+  { id: 'a',     name: 'Series A',    users: 20000,  avail: .99,   reward: 60000,  text: 'A venture firm leads your Series A.' },
+  { id: 'b',     name: 'Series B',    users: 50000,  avail: .995,  reward: 200000, text: 'Growth investors pile in.' },
+  { id: 'ipo',   name: 'IPO',         users: 120000, avail: .999,  reward: 0, soc2: true, text: 'The bell rings. You are a public company.' },
+];
+
+/* ---------------- state ---------------- */
+let S = null;
+let speed = 1, acc = 0, last = 0, modalOpen = false, resumeSpeed = 1, tab = 'team';
+const SAVE_KEY = 'nine-nines-save-v1';
+
+function newGame(company, role) {
+  return {
+    company, role, hour: 8, cash: role === 'ceo' ? 14000 : 8000, users: 2000, rep: 55,
+    infra: { cdn: 0, lb: 1, app: 2, cache: 0, db: 1 },
+    staff: { sre: 0, sec: 0, dba: 0, backend: 0, growth: 0, sales: 0 },
+    up: role === 'sre' ? { monitoring: true } : {},
+    effects: [], hist: [], goals: {}, contract: null,
+    lastIncident: 8, debtHours: 0, tips: {}, log: [], over: false, peakUsers: 2000, last: null,
+  };
+}
+const has = k => S.staff[k] > 0 || S.role === k;
+const nStaff = k => S.staff[k] + (S.role === k ? 1 : 0);
+const day = () => Math.floor(S.hour / 24) + 1;
+const hhmm = h => String(h % 24).padStart(2, '0') + ':00';
+const dur = h => Math.max(1, Math.round(h * (has('sre') ? .5 : 1) * (S.up.monitoring ? .75 : 1) * (S.role === 'sre' ? .75 : 1) * (S.staff.sre > 1 ? .8 : 1)));
+const salaryMult = () => S.role === 'ceo' ? .8 : 1;
+const upCost = k => UPGRADES[k].cost * (k === 'waf' && S.role === 'sec' ? .5 : 1);
+
+function infraCost() {
+  const i = S.infra;
+  let c = CDN_LV[i.cdn].cost + i.lb * LB_COST + i.app * APP_COST + CACHE_LV[i.cache].cost + DB_PRI_COST + (i.db - 1) * DB_REP_COST;
+  if (S.role === 'se') c *= .9;
+  return c;
+}
+function hourlyCost() {
+  let c = infraCost();
+  for (const k in STAFF) c += S.staff[k] * STAFF[k].salary * salaryMult();
+  for (const k in S.up) if (S.up[k]) c += UPGRADES[k].upkeep;
+  return c;
+}
+
+/* ---------------- simulation ---------------- */
+function simulate(hour) {
+  const hod = hour % 24;
+  const curve = .75 + .55 * Math.sin((hod - 9) / 24 * 2 * Math.PI);
+  let tMult = 1, attack = 0, appM = 1, dbM = 1, err = 0, growthAdj = 0, viral = false;
+  for (const e of S.effects) {
+    tMult *= e.traffic || 1; attack += e.attack || 0; appM *= e.app || 1; dbM *= e.db || 1;
+    err += e.err || 0; growthAdj += e.growth || 0; if (e.viral) viral = true;
+  }
+  const base = S.users * RPS_PER_USER * curve;
+  const cRps = S.contract ? S.contract.rps : 0;
+  const legit = base * tMult + cRps;
+  const atk = base * attack * (S.up.waf ? .3 : 1);
+  const off = CDN_LV[S.infra.cdn].v, hit = CACHE_LV[S.infra.cache].v;
+  const dyn = legit * (1 - off) + atk;
+  const lbCap = S.infra.lb * LB_CAP;
+  const appCap = S.infra.app * APP_CAP * (1 + .1 * nStaff('backend')) * appM;
+  const dbCap = (DB_PRI + DB_REP * (S.infra.db - 1)) * (1 + .3 * nStaff('dba')) * dbM;
+  const dbLoad = dyn * (1 - hit);
+  const u = { lb: dyn / lbCap, app: dyn / appCap, db: dbLoad / dbCap, cache: hit > 0 ? dyn * .4 / (CACHE_LV[S.infra.cache].v * 4000) : 0, cdn: off > 0 ? legit * off / (CDN_LV[S.infra.cdn].v * 20000) : 0 };
+  const served = Math.min(1, 1 / Math.max(u.lb, u.app, u.db, 1e-9));
+  let success = legit > 0 ? (legit * off + legit * (1 - off) * served) / legit : 1;
+  success *= 1 - Math.min(1, err);
+  const maxU = Math.max(u.lb, u.app, u.db);
+  let latency = 38 + (off > 0 ? 0 : 25) + (hit > 0 ? 0 : 20) + 170 * Math.pow(Math.min(maxU, 1), 4) + (maxU > 1 ? 900 * (maxU - 1) : 0);
+  latency = Math.min(latency, 9000);
+  const capRps = Math.min(lbCap, appCap, dbCap / (1 - hit)) / (1 - off);
+  return { legit, atk, cRps, dyn, off, hit, lbCap, appCap, dbCap, dbLoad, u, success, latency, capRps, tMult, growthAdj, viral, maxU };
+}
+
+function tick() {
+  if (S.over) return;
+  S.hour++;
+  const r = simulate(S.hour);
+  const revenue = (r.legit - r.cRps) * r.success * REV_PER_RPS_HOUR * (0.85 + S.rep / 333);
+  const cost = hourlyCost();
+  S.cash += revenue - cost;
+  S.last = { ...r, revenue, cost };
+
+  // users
+  let g = .0035 + .0006 * nStaff('backend') + .001 * S.staff.growth * (S.role === 'ceo' ? 1.5 : 1) + (S.rep - 50) / 50 * .0015 + r.growthAdj;
+  g -= (1 - r.success) * .06 + Math.max(0, r.latency - 250) / 1000 * .004;
+  if (r.viral) g += .012 * r.success - .025 * (1 - r.success);
+  S.users = Math.max(300, S.users * (1 + g));
+  S.peakUsers = Math.max(S.peakUsers, S.users);
+  S.last.growth = g;
+
+  // reputation drifts toward service quality
+  const target = 100 * Math.pow(r.success, 25) * (r.latency > 800 ? .7 : r.latency > 400 ? .9 : 1);
+  S.rep = clamp(S.rep + (target - S.rep) * .04, 0, 100);
+
+  S.hist.push({ legit: r.legit + r.atk, cap: r.capRps, fail: (r.legit) * (1 - r.success), s: r.success });
+  if (S.hist.length > 72) S.hist.shift();
+
+  // contract
+  if (S.contract) {
+    const c = S.contract; c.elapsed++; c.okSum += r.success;
+    if (c.elapsed >= c.hours) {
+      const avg = c.okSum / c.hours;
+      if (avg >= c.sla) { S.cash += c.payout; S.rep = clamp(S.rep + 5, 0, 100); log(`${c.client} contract complete at ${pct(avg)} availability. Paid ${money(c.payout)}.`, 'ok'); toast(`Contract paid: ${money(c.payout)}`); }
+      else { S.rep = clamp(S.rep - 8, 0, 100); log(`${c.client} contract missed its SLA (${pct(avg)} vs ${pct(c.sla, 1)}). No payout, reputation −8.`, 'bad'); }
+      S.contract = null;
+    }
+  }
+
+  // effects
+  for (const e of S.effects) e.hours--;
+  const ended = S.effects.filter(e => e.hours <= 0);
+  S.effects = S.effects.filter(e => e.hours > 0);
+  for (const e of ended) if (e.endMsg) log(e.endMsg, 'ok');
+
+  // autoscaling
+  if (S.up.autoscale) {
+    const per = APP_CAP * (1 + .1 * nStaff('backend'));
+    const want = clamp(Math.ceil(r.dyn / (per * .65)), 2, 80);
+    if (want > S.infra.app) S.infra.app = want;
+    else if (want < S.infra.app && r.u.app < .4) S.infra.app--;
+  }
+
+  tips(r);
+  checkGoals();
+
+  // bankruptcy
+  if (S.cash < 0) {
+    S.debtHours++;
+    if (S.debtHours === 1) log('Cash is negative. You have 48 hours to get back above zero or the company folds.', 'bad');
+    if (S.debtHours >= 48) return endGame(false, 'You ran out of money.');
+  } else S.debtHours = 0;
+
+  // events
+  if (!modalOpen) maybeEvent();
+  if (S.hour % 6 === 0) save();
+}
+
+function tips(r) {
+  const t = (k, msg) => { if (!S.tips[k]) { S.tips[k] = 1; log(msg, 'tip'); } };
+  if (r.u.app > .8) t('app', 'Tip: app servers are near their limit. Add a server with +, or turn on a CDN so static files never reach them.');
+  if (r.u.db > .8) t('db', 'Tip: the database is the bottleneck. A cache absorbs repeat reads, and replicas add read capacity.');
+  if (r.u.lb > .8) t('lb', 'Tip: one load balancer is also a single point of failure. Add a second one.');
+  if (r.success < .98) t('err', 'Users are seeing errors. Errors cost you users and reputation every hour, so fix the red tier first.');
+  if (S.hour > 60) t('hire', 'Tip: specialists cost salary every hour but unlock better incident responses. Check the Team tab.');
+}
+
+function checkGoals() {
+  const av = avail24();
+  for (const g of GOALS) {
+    if (S.goals[g.id]) continue;
+    const ok = S.users >= g.users && av >= g.avail && (!g.soc2 || S.up.soc2);
+    if (!ok) break; // goals unlock in order
+    S.goals[g.id] = day();
+    if (g.id === 'ipo') { log(g.text, 'ok'); return endGame(true, g.text); }
+    S.cash += g.reward;
+    log(`${g.name} closed: ${g.text} +${money(g.reward)}.`, 'ok');
+    toast(`${g.name} closed · +${money(g.reward)}`);
+  }
+}
+function avail24() {
+  const h = S.hist.slice(-24);
+  if (!h.length) return 1;
+  return h.reduce((a, x) => a + x.s, 0) / h.length;
+}
+
+/* ---------------- incidents ---------------- */
+const INCIDENTS = [
+  { id: 'ddos', sev: 'bad', minDay: 2, weight: () => 1 + S.users / 40000,
+    setup: () => ({ mult: Math.round(rnd(3, 6)) }),
+    title: 'DDoS attack in progress',
+    body: d => `A botnet is flooding your login endpoint with about ${d.mult}× your normal traffic. It will keep going for roughly 10 hours.${S.up.waf ? ' Your firewall is already filtering 70% of it.' : ''}`,
+    options: [
+      { label: 'Block the botnet with rate limits', req: 'sec', desc: 'Your security engineer writes edge rules that filter 95% of the attack.', apply: d => addEffect({ id: 'ddos', label: 'DDoS, mostly blocked', sev: 'warn', hours: dur(10), attack: d.mult * .05, endMsg: 'The DDoS attack has stopped.' }) },
+      { label: 'Buy emergency scrubbing', cost: 2500, desc: 'A scrubbing service filters 90% of attack traffic until it stops.', apply: d => addEffect({ id: 'ddos', label: 'DDoS, scrubbed', sev: 'warn', hours: dur(10), attack: d.mult * .1, endMsg: 'The DDoS attack has stopped.' }) },
+      { label: 'Absorb it with capacity', desc: 'Do nothing special. Unless you add a lot of capacity, real users get errors.', apply: d => addEffect({ id: 'ddos', label: 'DDoS attack', sev: 'bad', hours: dur(10), attack: d.mult, endMsg: 'The DDoS attack has stopped.' }) },
+    ] },
+  { id: 'breach', sev: 'bad', minDay: 3,
+    weight: () => 1.3 * (1 + S.users / 30000) * Math.pow(.5, S.staff.sec) * (S.up.waf ? .6 : 1) * (S.role === 'sec' ? .6 : 1),
+    title: 'Security breach detected',
+    body: () => 'An attacker used a SQL injection in the search API and may have read customer email addresses. What you do in the next hour decides how bad this gets.',
+    options: [
+      { label: 'Contain, rotate keys and disclose', req: 'sec', desc: 'Fast and transparent. Reputation −4.', apply: () => { bumpRep(-4); log('Breach contained and disclosed. Customers appreciated the honesty.', 'ok'); } },
+      { label: 'Hire an incident response firm', cost: 6000, desc: 'Outside experts contain it within a day. Reputation −12.', apply: () => { bumpRep(-12); log('The response firm contained the breach.', 'ok'); } },
+      { label: 'Patch it quietly yourself', desc: 'Free, but a coin flip. If data leaks: reputation −35, 15% of users leave and a $3,000 fine.', apply: () => {
+          if (Math.random() < .5) { bumpRep(-3); log('Your patch held. Nobody noticed. This time.', 'ok'); }
+          else { bumpRep(-35); S.users *= .85; S.cash -= 3000; log('The data leaked and the story went public. Reputation −35, users −15%, fined $3,000.', 'bad'); }
+        } },
+    ] },
+  { id: 'viral', sev: 'ok', minDay: 2, weight: () => .9,
+    title: 'You hit the front page',
+    body: () => 'A post about your product is trending. Expect about 3× normal traffic for the next 8 hours. Serve it well and many of them stay. Drop requests and they leave angry.',
+    options: [
+      { label: 'Brace for it', desc: 'The game resumes. Scale up now if you need to.', apply: () => addEffect({ id: 'viral', label: 'Trending · 3× traffic', sev: 'info', hours: 8, traffic: 3, viral: true, endMsg: 'The traffic spike has faded.' }) },
+    ] },
+  { id: 'deploy', sev: 'warn', minDay: 2, weight: () => .7 + .25 * S.staff.backend,
+    auto: () => S.up.canary ? 'A bad release failed its canary check and rolled back automatically.' : null,
+    title: 'Bad deploy',
+    body: () => 'The latest release breaks checkout. About 30% of requests fail.',
+    options: [
+      { label: 'Canary rollback', req: 'sre', desc: 'Your SRE rolls back the bad instances. Fixed this hour, feature kept.', apply: () => addEffect({ id: 'deploy', label: 'Bad deploy', sev: 'bad', hours: 1, err: .1 }) },
+      { label: 'Hotfix forward', req: 'backend', desc: '70% chance it is fixed in 2 hours. Otherwise errors last 6 hours.', apply: () => { const ok = Math.random() < .7; addEffect({ id: 'deploy', label: 'Bad deploy', sev: 'bad', hours: ok ? 2 : dur(6), err: .3, endMsg: 'Checkout is working again.' }); log(ok ? 'The hotfix is going out.' : 'The hotfix made it worse. Errors will last a while.', ok ? 'ok' : 'bad'); } },
+      { label: 'Roll back the release', desc: 'Errors stop within an hour, but the feature slips and growth slows for a day.', apply: () => { addEffect({ id: 'deploy', label: 'Bad deploy', sev: 'bad', hours: 1, err: .3 }); addEffect({ id: 'slip', label: 'Feature delayed', sev: 'warn', hours: 24, growth: -.002 }); } },
+    ] },
+  { id: 'disk', sev: 'warn', minDay: 3, weight: () => .6 + S.users / 60000,
+    title: 'Database disk almost full',
+    body: () => 'Write latency is spiking. The database runs at half capacity until the disk is fixed.',
+    options: [
+      { label: 'Archive cold data', req: 'dba', desc: 'Your DBA moves old rows to object storage. Fixed in 1 hour, free.', apply: () => addEffect({ id: 'disk', label: 'DB disk full', sev: 'bad', hours: 1, db: .5 }) },
+      { label: 'Emergency storage expansion', cost: 1500, desc: 'Fixed in 1 hour.', apply: () => addEffect({ id: 'disk', label: 'DB disk full', sev: 'bad', hours: 1, db: .5 }) },
+      { label: 'Wait for cleanup jobs', desc: 'Half database capacity for about 8 hours.', apply: () => addEffect({ id: 'disk', label: 'DB disk full', sev: 'bad', hours: dur(8), db: .5, endMsg: 'Database disk space recovered.' }) },
+    ] },
+  { id: 'zone', sev: 'bad', minDay: 4, weight: () => .5,
+    auto: () => S.up.multizone ? 'A cloud zone went down. Multi-zone redundancy kept everything running.' : null,
+    title: 'Cloud zone outage',
+    body: () => 'One availability zone at your cloud provider is down. Half of your app servers and database nodes are offline.',
+    options: [
+      { label: 'Fail over to another zone', req: 'sre', desc: 'Your SRE rebuilds capacity elsewhere. Back to normal in 2 hours.', apply: () => addEffect({ id: 'zone', label: 'Zone outage', sev: 'bad', hours: 2, app: .5, db: .5, endMsg: 'Failover complete.' }) },
+      { label: 'Pay for priority recovery', cost: 2000, desc: 'Your provider prioritises you. Back in 3 hours.', apply: () => addEffect({ id: 'zone', label: 'Zone outage', sev: 'bad', hours: 3, app: .5, db: .5, endMsg: 'The zone is back.' }) },
+      { label: 'Wait for the provider', desc: 'Expected recovery in about 8 hours.', apply: () => addEffect({ id: 'zone', label: 'Zone outage', sev: 'bad', hours: 8, app: .5, db: .5, endMsg: 'The zone is back.' }) },
+    ] },
+  { id: 'tls', sev: 'bad', minDay: 5, weight: () => .35,
+    skip: () => !!S.up.tls,
+    title: 'TLS certificate expired',
+    body: () => 'Browsers refuse to connect. The site is effectively down until the certificate is renewed.',
+    options: [
+      { label: 'Renew it now', desc: 'The site is down for 1 hour. Certificate automation prevents this.', apply: () => addEffect({ id: 'tls', label: 'Certificate expired', sev: 'bad', hours: 1, err: 1, endMsg: 'New certificate installed.' }) },
+    ] },
+  { id: 'leak', sev: 'warn', minDay: 3, weight: () => .6,
+    title: 'Memory leak in app servers',
+    body: () => 'App servers slow down and crash every few hours. App capacity is down 40%.',
+    options: [
+      { label: 'Profile and patch', req: 'backend', desc: 'A backend engineer finds the leak. Fixed in 2 hours.', apply: () => addEffect({ id: 'leak', label: 'Memory leak', sev: 'warn', hours: 2, app: .6, endMsg: 'Memory leak patched.' }) },
+      { label: 'Schedule rolling restarts', desc: 'App capacity −40% for about 10 hours until a fix ships.', apply: () => addEffect({ id: 'leak', label: 'Memory leak', sev: 'warn', hours: dur(10), app: .6, endMsg: 'Memory leak patched.' }) },
+    ] },
+];
+
+const CLIENTS = ['Northgate Bank', 'Halcyon Health', 'Orbital Freight', 'Pinecrest Retail', 'Vantage Media', 'Ironleaf Insurance', 'Meridian Air', 'Copperline Energy'];
+
+function maybeEvent() {
+  if (day() < 2) return;
+  // contract offers
+  const offerP = (S.role === 'se' ? .03 : 0) + .02 * S.staff.sales;
+  if (!S.contract && offerP > 0 && Math.random() < offerP) return offerContract();
+  if (S.hour - S.lastIncident < 10) return;
+  const p = .03 + Math.min(.04, S.users / 150000 * .03);
+  if (Math.random() > p) return;
+  const pool = INCIDENTS.filter(i => day() >= i.minDay && !(i.skip && i.skip()) && !S.effects.some(e => e.id === i.id));
+  const total = pool.reduce((a, i) => a + i.weight(), 0);
+  let x = Math.random() * total, pick = pool[0];
+  for (const i of pool) { x -= i.weight(); if (x <= 0) { pick = i; break; } }
+  if (!pick) return;
+  S.lastIncident = S.hour;
+  const autoMsg = pick.auto && pick.auto();
+  if (autoMsg) { log(autoMsg, 'ok'); return; }
+  showIncident(pick);
+}
+
+function addEffect(e) { S.effects = S.effects.filter(x => x.id !== e.id); S.effects.push(e); }
+function bumpRep(d) { S.rep = clamp(S.rep + d, 0, 100); }
+
+function optionBlock(o) {
+  if (o.req && !has(o.req)) return `Needs a ${STAFF[o.req].name}`;
+  if (o.cost && S.cash < o.cost) return 'Not enough cash';
+  return '';
+}
+
+function showIncident(def) {
+  const d = def.setup ? def.setup() : {};
+  openModal(`
+    <div class="label">${def.sev === 'ok' ? 'Opportunity' : 'Incident'} · Day ${day()}, ${hhmm(S.hour)}</div>
+    <h2>${def.title}</h2>
+    <p>${def.body(d)}</p>
+    <div class="opts">${def.options.map((o, i) => {
+      const b = optionBlock(o);
+      return `<button class="opt" data-opt="${i}" ${b ? 'disabled' : ''}>
+        <span class="ot">${o.label}</span><span class="oc">${o.cost ? money(o.cost) : 'Free'}</span>
+        <span class="od">${o.desc}</span>${b ? `<span class="or">${b}</span>` : ''}</button>`;
+    }).join('')}</div>`, def.sev, i => {
+      const o = def.options[i];
+      if (o.cost) S.cash -= o.cost;
+      log(`${def.title}: ${o.label.toLowerCase()}.`, def.sev === 'ok' ? 'tip' : 'bad');
+      o.apply(d);
+    });
+}
+
+function offerContract() {
+  const r = S.last || simulate(S.hour);
+  const rps = Math.max(40, Math.round(S.users * RPS_PER_USER * 1.3 * rnd(.2, .4) / 10) * 10);
+  const hours = [48, 72, 96][Math.floor(Math.random() * 3)];
+  const tier = [{ sla: .99, m: 1 }, { sla: .995, m: 1.4 }, { sla: .999, m: 2 }][Math.floor(Math.random() * 3)];
+  const payout = Math.round(rps * hours * .55 * tier.m * (S.up.soc2 ? 1.5 : 1) / 50) * 50;
+  const client = CLIENTS[Math.floor(Math.random() * CLIENTS.length)];
+  const c = { client, rps, hours, sla: tier.sla, payout, elapsed: 0, okSum: 0 };
+  openModal(`
+    <div class="label">Enterprise offer · Day ${day()}</div>
+    <h2>${client} wants dedicated capacity</h2>
+    <p>They will send a steady <b class="mono">${rps} req/s</b> on top of your normal traffic for <b>${hours / 24} days</b>, and need <b class="mono">${pct(tier.sla, 1)}</b> availability. Hit the SLA and they pay <b class="mono">${money(payout)}</b> at the end. Miss it and you get nothing, plus a reputation hit.</p>
+    <div class="opts">
+      <button class="opt" data-opt="0"><span class="ot">Sign the contract</span><span class="oc">+${money(payout)}</span><span class="od">Make sure your request path has room for ${rps} more req/s at peak.</span></button>
+      <button class="opt" data-opt="1"><span class="ot">Decline</span><span class="oc">—</span><span class="od">No risk, no reward.</span></button>
+    </div>`, 'ok', i => {
+      if (i === 0) { S.contract = c; log(`Signed ${client}: ${rps} req/s for ${hours / 24} days at ${pct(tier.sla, 1)}.`, 'tip'); }
+      else log(`Declined the ${client} contract.`);
+    });
+}
+
+/* ---------------- modal / toast ---------------- */
+function openModal(html, sev, onPick) {
+  modalOpen = true;
+  if (speed > 0) resumeSpeed = speed;
+  setSpeed(0, true);
+  const card = $('#modalCard');
+  card.className = 'card sev-' + (sev || 'warn');
+  card.innerHTML = html;
+  $('#modal').hidden = false;
+  card.querySelectorAll('[data-opt]').forEach(b => b.addEventListener('click', () => {
+    $('#modal').hidden = true; modalOpen = false;
+    onPick && onPick(+b.dataset.opt);
+    setSpeed(resumeSpeed);
+    render();
+  }));
+  const first = card.querySelector('.opt:not(:disabled), button:not(:disabled)');
+  first && first.focus();
+}
+let toastT = 0;
+function toast(msg) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => t.hidden = true, 3200); }
+function log(msg, cls = '') {
+  S.log.unshift({ t: `D${day()} ${hhmm(S.hour)}`, msg, cls });
+  if (S.log.length > 80) S.log.pop();
+  renderLog();
+}
+
+/* ---------------- end game ---------------- */
+function endGame(won, reason) {
+  S.over = true; save(true);
+  modalOpen = true; setSpeed(0, true);
+  const card = $('#modalCard');
+  card.className = 'card sev-' + (won ? 'ok' : 'bad');
+  card.innerHTML = `
+    <div class="label">${won ? 'You won' : 'Game over'} · Day ${day()}</div>
+    <h2>${won ? `${esc(S.company)} is public` : `${esc(S.company)} shut down`}</h2>
+    <p>${reason}</p>
+    <div class="endstats">
+      <div><span class="label">Days</span><b>${day()}</b></div>
+      <div><span class="label">Peak users</span><b>${fmt(S.peakUsers)}</b></div>
+      <div><span class="label">Team</span><b>${Object.values(S.staff).reduce((a, b) => a + b, 0)}</b></div>
+      <div><span class="label">Cash</span><b>${money(S.cash)}</b></div>
+    </div>
+    <button class="big-btn" id="againBtn">Start a new company</button>`;
+  $('#modal').hidden = false;
+  $('#againBtn').addEventListener('click', () => { $('#modal').hidden = true; modalOpen = false; clearSave(); showStart(); });
+}
+
+/* ---------------- player actions ---------------- */
+function changeTier(t, d) {
+  const i = S.infra;
+  if (t === 'cdn') i.cdn = clamp(i.cdn + d, 0, 3);
+  if (t === 'cache') i.cache = clamp(i.cache + d, 0, 3);
+  if (t === 'lb') i.lb = clamp(i.lb + d, 1, 8);
+  if (t === 'app') { if (S.up.autoscale && d < 0) return; i.app = clamp(i.app + d, 1, 80); }
+  if (t === 'db') i.db = clamp(i.db + d, 1, 10);
+  S.last = { ...S.last, ...simulate(S.hour) };
+  render();
+}
+function hire(k) {
+  const st = STAFF[k];
+  if (S.staff[k] >= st.max || S.cash < st.fee) return;
+  S.cash -= st.fee; S.staff[k]++;
+  log(`Hired a ${st.name}.`, 'ok'); render();
+}
+function fire(k) {
+  if (!S.staff[k]) return;
+  S.staff[k]--; S.cash -= 500; bumpRep(-1);
+  log(`Let a ${STAFF[k].name} go. Severance $500.`); render();
+}
+function buy(k) {
+  const u = UPGRADES[k];
+  if (S.up[k] || S.cash < upCost(k) || (u.req && !has(u.req))) return;
+  S.cash -= upCost(k); S.up[k] = true;
+  log(`Bought ${u.name}.`, 'ok'); render();
+}
+
+/* ---------------- rendering ---------------- */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const NODES = [
+  { id: 'users', nm: 'Users' },
+  { id: 'cdn', nm: 'CDN' },
+  { id: 'lb', nm: 'Load balancers' },
+  { id: 'app', nm: 'App servers' },
+  { id: 'cache', nm: 'Cache' },
+  { id: 'db', nm: 'Database' },
+];
+function buildPipe() {
+  const pipe = $('#pipe'); pipe.innerHTML = '';
+  NODES.forEach((n, i) => {
+    if (i > 0) { const f = document.createElement('div'); f.className = 'flow'; f.dataset.flow = n.id; f.innerHTML = '<div class="wire"></div><div class="rps"></div>'; pipe.appendChild(f); }
+    const el = document.createElement('div');
+    el.className = 'node' + (n.id === 'users' ? ' users-node' : '');
+    el.dataset.node = n.id;
+    el.innerHTML = n.id === 'users'
+      ? `<div class="nm">Users</div><div class="big" data-f="u"></div><div class="cfg" data-f="cfg"></div><div class="atk" data-f="atk"></div>`
+      : `<span class="tag" data-f="tag" hidden>Bottleneck</span><div class="nm">${n.nm}</div><div class="cfg" data-f="cfg"></div>
+         <div class="meter"><i data-f="bar"></i></div><div class="ld" data-f="ld"></div><div class="cost" data-f="cost"></div>
+         <div class="btns"><button data-tier="${n.id}" data-d="-1" aria-label="Scale down ${n.nm}">−</button><button data-tier="${n.id}" data-d="1" aria-label="Scale up ${n.nm}">+</button></div>`;
+    pipe.appendChild(el);
+  });
+}
+function buildLists() {
+  $('#staffList').innerHTML = Object.entries(STAFF).map(([k, s]) => `
+    <div class="item" data-staff="${k}"><span class="t">${s.name}</span><span class="count" data-f="n"></span>
+      <span class="d">${s.desc}</span><span class="m" data-f="m"></span>
+      <div style="grid-column:1/-1;display:flex;gap:6px"><button class="act" data-hire="${k}">Hire</button><button class="act ghost" data-fire="${k}">Let go</button></div></div>`).join('');
+  $('#upList').innerHTML = Object.entries(UPGRADES).map(([k, u]) => `
+    <div class="item" data-up="${k}"><span class="t">${u.name}</span><span data-f="state"></span>
+      <span class="d">${u.desc}</span><span class="m" data-f="m"></span></div>`).join('');
+}
+function utilColor(u) { return u > 1 ? 'var(--bad)' : u > .8 ? 'var(--warn)' : 'var(--ok)'; }
+
+function render() {
+  if (!S) return;
+  const r = S.last || simulate(S.hour);
+  const net = (r.revenue ?? 0) - hourlyCost();
+  $('#coName').textContent = `${S.company} · you are the ${ROLES[S.role].name}`;
+  $('#clock').textContent = `Day ${day()} · ${hhmm(S.hour)}`;
+  $('#stCash').textContent = money(S.cash);
+  $('#stCash').className = 'v' + (S.cash < 0 ? ' badc' : '');
+  $('#stNet').innerHTML = `<span class="${net >= 0 ? 'good' : 'badc'}">${net >= 0 ? '+' : '−'}${money(Math.abs(net)).slice(0)}/h</span> · costs ${money(hourlyCost())}/h`;
+  $('#stUsers').textContent = fmt(S.users);
+  const g = S.last?.growth ?? 0;
+  $('#stGrowth').innerHTML = `<span class="${g >= 0 ? 'good' : 'badc'}">${g >= 0 ? '+' : ''}${(g * 2400).toFixed(1)}%/day</span>`;
+  $('#stRps').textContent = fmt(r.legit + r.atk) + ' rps';
+  $('#stCap').textContent = `max ${fmt(r.capRps)} rps`;
+  const av = avail24();
+  $('#stAvail').textContent = pct(av, av > .999 ? 3 : 2);
+  $('#stAvail').className = 'v ' + (av >= .995 ? 'good' : av >= .97 ? 'warnc' : 'badc');
+  $('#stErr').textContent = `this hour ${pct(r.success, 1)} ok`;
+  $('#stLat').textContent = Math.round(r.latency) + ' ms';
+  $('#stLat').className = 'v ' + (r.latency < 250 ? 'good' : r.latency < 600 ? 'warnc' : 'badc');
+  $('#stRep').textContent = Math.round(S.rep) + ' / 100';
+  $('#stRepS').textContent = S.rep >= 80 ? 'loved' : S.rep >= 60 ? 'trusted' : S.rep >= 40 ? 'mixed reviews' : 'angry users';
+
+  // effects
+  const chips = S.effects.map(e => `<span class="chip ${e.sev || 'warn'}">${esc(e.label)} · ${e.hours}h</span>`);
+  if (S.contract) chips.push(`<span class="chip info">${esc(S.contract.client)} contract · ${S.contract.rps} rps · ${S.contract.hours - S.contract.elapsed}h left · needs ${pct(S.contract.sla, 1)}</span>`);
+  if (S.debtHours) chips.push(`<span class="chip bad">In debt · ${48 - S.debtHours}h until shutdown</span>`);
+  $('#effects').innerHTML = chips.length ? chips.join('') : '<span class="none">All systems normal.</span>';
+
+  // pipeline
+  const node = id => $(`[data-node="${id}"]`);
+  const set = (id, f, v, html) => { const e = node(id).querySelector(`[data-f="${f}"]`); if (html) e.innerHTML = v; else e.textContent = v; };
+  set('users', 'u', fmt(r.legit) + ' rps');
+  set('users', 'cfg', `${fmt(S.users)} users${r.cRps ? `, ${r.cRps} rps contract` : ''}`);
+  set('users', 'atk', r.atk > 1 ? `+${fmt(r.atk)} rps attack` : '');
+  const i = S.infra;
+  const tiers = {
+    cdn:   { cfg: `${CDN_LV[i.cdn].l}${i.cdn ? ` · serves ${Math.round(r.off * 100)}% at the edge` : ' · every request hits your servers'}`, u: i.cdn ? r.off / .7 * .3 : 0, ld: i.cdn ? `${fmt(r.legit * r.off)} rps served` : 'not in use', cost: CDN_LV[i.cdn].cost, lo: i.cdn === 0, hi: i.cdn === 3 },
+    lb:    { cfg: `${i.lb} balancer${i.lb > 1 ? 's' : ''}${i.lb === 1 ? ' · single point of failure' : ''}`, u: r.u.lb, ld: `${fmt(r.dyn)} / ${fmt(r.lbCap)} rps`, cost: i.lb * LB_COST, lo: i.lb === 1, hi: i.lb === 8 },
+    app:   { cfg: `${i.app} server${i.app > 1 ? 's' : ''}${S.up.autoscale ? ' · autoscaling' : ''}`, u: r.u.app, ld: `${fmt(r.dyn)} / ${fmt(r.appCap)} rps`, cost: i.app * APP_COST, lo: i.app === 1 || S.up.autoscale, hi: i.app === 80 },
+    cache: { cfg: `${CACHE_LV[i.cache].l}${i.cache ? ` · ${Math.round(r.hit * 100)}% hit rate` : ' · every read hits the database'}`, u: i.cache ? r.u.cache : 0, ld: i.cache ? `${fmt(r.dyn * r.hit)} reads/s absorbed` : 'not in use', cost: CACHE_LV[i.cache].cost, lo: i.cache === 0, hi: i.cache === 3 },
+    db:    { cfg: `1 primary${i.db > 1 ? ` + ${i.db - 1} replica${i.db > 2 ? 's' : ''}` : ', no replicas'}`, u: r.u.db, ld: `${fmt(r.dbLoad)} / ${fmt(r.dbCap)} qps`, cost: DB_PRI_COST + (i.db - 1) * DB_REP_COST, lo: i.db === 1, hi: i.db === 10 },
+  };
+  let worst = null, worstU = 0;
+  for (const k of ['lb', 'app', 'db']) if (r.u[k] > worstU) { worstU = r.u[k]; worst = k; }
+  for (const [k, t] of Object.entries(tiers)) {
+    const n = node(k);
+    set(k, 'cfg', t.cfg);
+    set(k, 'ld', t.ld);
+    set(k, 'cost', `${money(t.cost * (S.role === 'se' ? .9 : 1))}/h`);
+    const bar = n.querySelector('[data-f="bar"]');
+    bar.style.width = Math.min(100, t.u * 100) + '%';
+    bar.style.backgroundColor = utilColor(t.u);
+    n.classList.toggle('hot', t.u > .8 && t.u <= 1);
+    n.classList.toggle('over', t.u > 1);
+    n.querySelector('[data-f="tag"]').hidden = !(k === worst && worstU > .85);
+    const [dn, up] = n.querySelectorAll('.btns button');
+    dn.disabled = t.lo; up.disabled = t.hi;
+  }
+  // flows
+  const flows = { cdn: r.legit + r.atk, lb: r.dyn, app: r.dyn, cache: r.dyn, db: r.dbLoad };
+  const downU = { cdn: 0, lb: r.u.lb, app: r.u.app, cache: r.u.db, db: r.u.db };
+  for (const [k, v] of Object.entries(flows)) {
+    const f = $(`[data-flow="${k}"]`);
+    f.querySelector('.rps').textContent = fmt(v);
+    f.style.setProperty('--dur', clamp(2.4 - Math.log10(v + 1) * .6, .25, 2.4).toFixed(2) + 's');
+    f.classList.toggle('hot', downU[k] > 1);
+  }
+  const bn = $('#bneck');
+  if (worstU > .85) bn.innerHTML = `Bottleneck: <b>${NODES.find(n => n.id === worst).nm}</b> at ${Math.round(worstU * 100)}% load. ${worstU > 1 ? 'Requests are being dropped.' : 'Scale it before the afternoon peak.'}`;
+  else bn.innerHTML = `Peak traffic arrives around 15:00. Headroom now: <b>${fmt(Math.max(0, r.capRps - r.legit - r.atk))} rps</b>.`;
+
+  renderSide();
+  drawChart();
+}
+
+function renderSide() {
+  const roleCounts = { sre: 'sre', sec: 'sec' };
+  $('#teamNote').textContent = `You count as a ${ROLES[S.role].name}. Salaries are paid every hour${S.role === 'ceo' ? ' (20% off as founder)' : ''}.`;
+  for (const [k, s] of Object.entries(STAFF)) {
+    const el = $(`[data-staff="${k}"]`);
+    el.querySelector('[data-f="n"]').textContent = `${S.staff[k]} / ${s.max}${roleCounts[k] && S.role === k ? ' + you' : ''}`;
+    el.querySelector('[data-f="m"]').textContent = `Hiring fee ${money(s.fee)} · ${money(s.salary * salaryMult())}/h`;
+    el.querySelector('[data-hire]').disabled = S.staff[k] >= s.max || S.cash < s.fee;
+    el.querySelector('[data-fire]').hidden = !S.staff[k];
+  }
+  for (const [k, u] of Object.entries(UPGRADES)) {
+    const el = $(`[data-up="${k}"]`);
+    const st = el.querySelector('[data-f="state"]');
+    if (S.up[k]) st.innerHTML = '<span class="owned">Installed</span>';
+    else {
+      const blocked = u.req && !has(u.req);
+      st.innerHTML = `<button class="act" data-buy="${k}" ${blocked || S.cash < upCost(k) ? 'disabled' : ''}>Buy ${money(upCost(k))}</button>`;
+    }
+    const m = [];
+    if (u.upkeep) m.push(`${money(u.upkeep)}/h upkeep`);
+    if (u.req && !S.up[k]) m.push(has(u.req) ? `${STAFF[u.req].name} on team` : `Needs a ${STAFF[u.req].name}`);
+    el.querySelector('[data-f="m"]').textContent = m.join(' · ');
+  }
+  const av = avail24();
+  let unlocked = true;
+  $('#goalList').innerHTML = GOALS.map(g => {
+    const done = !!S.goals[g.id];
+    const reqs = [
+      `<span class="${S.users >= g.users ? 'met' : ''}">${fmt(Math.min(S.users, g.users))} / ${fmt(g.users)} users</span>`,
+      g.avail ? `<span class="${av >= g.avail ? 'met' : ''}">${pct(av)} / ${pct(g.avail, 1)} availability (24h)</span>` : '',
+      g.soc2 ? `<span class="${S.up.soc2 ? 'met' : ''}">SOC 2 audit ${S.up.soc2 ? 'passed' : 'not done'}</span>` : '',
+    ].filter(Boolean).join('');
+    const html = `<div class="goal ${done ? 'done' : ''}" style="${!done && !unlocked ? 'opacity:.55' : ''}">
+      <div class="row"><b>${g.name}</b><span class="mono ${done ? 'good' : ''}">${done ? `Closed day ${S.goals[g.id]}` : g.reward ? '+' + money(g.reward) : 'Win'}</span></div>
+      <div class="req">${done ? '' : reqs}</div></div>`;
+    if (!done) unlocked = false;
+    return html;
+  }).join('') + (S.contract ? `<div class="goal"><div class="row"><b>${esc(S.contract.client)}</b><span class="mono">${money(S.contract.payout)}</span></div>
+      <div class="req"><span>${S.contract.rps} rps for ${S.contract.hours - S.contract.elapsed} more hours</span><span class="${S.contract.elapsed && S.contract.okSum / S.contract.elapsed >= S.contract.sla ? 'met' : ''}">${S.contract.elapsed ? pct(S.contract.okSum / S.contract.elapsed) : '—'} so far, needs ${pct(S.contract.sla, 1)}</span></div></div>` : '');
+}
+function renderLog() {
+  if (!S) return;
+  $('#log').innerHTML = S.log.map(l => `<div class="${l.cls}"><time>${l.t}</time>${esc(l.msg)}</div>`).join('');
+}
+
+function drawChart() {
+  const cv = $('#chart'), dpr = window.devicePixelRatio || 1;
+  const w = cv.clientWidth, h = cv.clientHeight;
+  if (!w || !h) return;
+  if (cv.width !== Math.round(w * dpr) || cv.height !== Math.round(h * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+  const ctx = cv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+  const css = getComputedStyle(document.documentElement);
+  const C = k => css.getPropertyValue(k).trim();
+  const H = S.hist, N = 72;
+  const padL = 44, padB = 18, padT = 8, pw = w - padL - 6, ph = h - padB - padT;
+  let max = 10; for (const p of H) max = Math.max(max, p.legit, p.cap);
+  max = niceMax(max * 1.08);
+  const x = j => padL + (j + (N - H.length)) / (N - 1) * pw;
+  const y = v => padT + ph - v / max * ph;
+  ctx.font = '11px "IBM Plex Mono", monospace'; ctx.fillStyle = C('--ink-dim'); ctx.strokeStyle = C('--line'); ctx.lineWidth = 1;
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  for (let k = 0; k <= 4; k++) { const v = max * k / 4, yy = Math.round(y(v)) + .5; ctx.globalAlpha = .5; ctx.beginPath(); ctx.moveTo(padL, yy); ctx.lineTo(w - 6, yy); ctx.stroke(); ctx.globalAlpha = 1; ctx.fillText(fmt(v), padL - 6, yy); }
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  ['−72h', '−48h', '−24h', 'now'].forEach((t, k) => { ctx.textAlign = k === 3 ? 'right' : k === 0 ? 'left' : 'center'; ctx.fillText(t, padL + k / 3 * pw, h - padB + 4); });
+  if (H.length < 2) return;
+  // fail bars
+  ctx.fillStyle = C('--bad');
+  H.forEach((p, j) => { if (p.fail > .5) { const yy = y(p.fail); ctx.fillRect(x(j) - 2, yy, 4, padT + ph - yy); } });
+  // traffic area
+  ctx.beginPath(); H.forEach((p, j) => j ? ctx.lineTo(x(j), y(p.legit)) : ctx.moveTo(x(j), y(p.legit)));
+  ctx.lineTo(x(H.length - 1), y(0)); ctx.lineTo(x(0), y(0)); ctx.closePath();
+  ctx.fillStyle = C('--accent'); ctx.globalAlpha = .18; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.beginPath(); H.forEach((p, j) => j ? ctx.lineTo(x(j), y(p.legit)) : ctx.moveTo(x(j), y(p.legit)));
+  ctx.strokeStyle = C('--accent'); ctx.lineWidth = 2; ctx.stroke();
+  // capacity
+  ctx.setLineDash([5, 4]); ctx.beginPath(); H.forEach((p, j) => j ? ctx.lineTo(x(j), y(p.cap)) : ctx.moveTo(x(j), y(p.cap)));
+  ctx.strokeStyle = C('--ink-dim'); ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+  const lp = H[H.length - 1]; ctx.fillStyle = C('--accent'); ctx.beginPath(); ctx.arc(x(H.length - 1), y(lp.legit), 3.5, 0, 7); ctx.fill();
+}
+function niceMax(v) { const p = Math.pow(10, Math.floor(Math.log10(v))); for (const m of [1, 2, 2.5, 5, 10]) if (m * p >= v) return m * p; return 10 * p; }
+
+/* ---------------- speed / loop ---------------- */
+function setSpeed(v, silent) {
+  speed = v;
+  document.querySelectorAll('.speed button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.speed === v)));
+}
+function loop(t) {
+  const dt = Math.min(250, t - (last || t)); last = t;
+  if (S && !S.over && speed > 0 && !modalOpen) {
+    acc += dt * speed;
+    let n = 0;
+    while (acc >= 1000 && n < 10 && !modalOpen && !S.over) { tick(); acc -= 1000; n++; }
+    if (n) render();
+  }
+  requestAnimationFrame(loop);
+}
+
+/* ---------------- save / load ---------------- */
+function save(force) { try { if (S && (!S.over || force)) localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) {} }
+function load() { try { const j = localStorage.getItem(SAVE_KEY); if (!j) return null; const s = JSON.parse(j); return s && !s.over ? s : null; } catch (e) { return null; } }
+function clearSave() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+
+/* ---------------- start screen ---------------- */
+let pickedRole = 'se';
+function showStart() {
+  S = null;
+  $('#roles').innerHTML = Object.entries(ROLES).map(([k, r]) => `
+    <button class="role" role="radio" data-role="${k}" aria-checked="${k === pickedRole}">
+      <span class="rn">${r.name}</span><span class="rb">${r.blurb}</span>
+      <ul>${r.perks.map(p => `<li>${p}</li>`).join('')}</ul></button>`).join('');
+  $('#continueBtn').hidden = !load();
+  $('#startScreen').hidden = false;
+}
+function begin(state) {
+  S = state; acc = 0;
+  $('#startScreen').hidden = true;
+  buildPipe(); buildLists(); renderLog();
+  if (!S.log.length) {
+    log(`${S.company} is live. You start with 2,000 users, two app servers and one database.`, 'tip');
+    log('Traffic follows the day: quiet at night, peaking mid-afternoon. Watch the load bars and keep them out of the red.', 'tip');
+    if (S.role === 'se') log('As Solutions Engineer you will get enterprise contract offers from day 2.', 'tip');
+  }
+  S.last = { ...simulate(S.hour), revenue: 0, growth: 0 };
+  setSpeed(1); render();
+}
+
+/* ---------------- events ---------------- */
+document.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.speed != null && S) { if (!modalOpen) setSpeed(+b.dataset.speed); return; }
+  if (b.dataset.tier && S) return changeTier(b.dataset.tier, +b.dataset.d);
+  if (b.dataset.hire) return hire(b.dataset.hire);
+  if (b.dataset.fire) return fire(b.dataset.fire);
+  if (b.dataset.buy) return buy(b.dataset.buy);
+  if (b.dataset.tab) {
+    tab = b.dataset.tab;
+    document.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', String(x.dataset.tab === tab)));
+    document.querySelectorAll('[data-pane]').forEach(p => p.hidden = p.dataset.pane !== tab);
+    return;
+  }
+  if (b.dataset.role) {
+    pickedRole = b.dataset.role;
+    document.querySelectorAll('[data-role]').forEach(x => x.setAttribute('aria-checked', String(x.dataset.role === pickedRole)));
+    return;
+  }
+  if (b.id === 'startBtn') { clearSave(); return begin(newGame(($('#coInput').value.trim() || 'Lumen Systems').slice(0, 28), pickedRole)); }
+  if (b.id === 'continueBtn') { const s = load(); if (s) begin(s); }
+});
+document.addEventListener('keydown', e => {
+  if (!S || modalOpen || e.target.tagName === 'INPUT') return;
+  if (e.code === 'Space') { e.preventDefault(); if (speed) { resumeSpeed = speed; setSpeed(0); } else setSpeed(resumeSpeed || 1); }
+  if (e.key === '1') setSpeed(1); if (e.key === '2') setSpeed(3); if (e.key === '3') setSpeed(8);
+});
+window.addEventListener('resize', () => S && drawChart());
+window.addEventListener('beforeunload', () => save());
+document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+
+// test hook
+window.__nn = { get S() { return S; }, tick, render, simulate, begin, newGame, showIncident: id => showIncident(INCIDENTS.find(i => i.id === id)), offerContract };
+
+showStart();
+requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
