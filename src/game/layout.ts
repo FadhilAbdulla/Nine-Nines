@@ -5,7 +5,7 @@ export const TILE = 52;
 
 export interface PlacedStation { id: StationId; label: string; emoji: string; x: number; y: number }
 export interface PlacedDesk { x: number; y: number; emp: Employee }
-export interface Layout { cols: number; rows: number; home: boolean; stations: PlacedStation[]; desks: PlacedDesk[]; remote: PlacedDesk[] }
+export interface Layout { cols: number; rows: number; home: boolean; stations: PlacedStation[]; desks: PlacedDesk[]; remote: PlacedDesk[]; empty: { x: number; y: number }[] }
 
 export const STATION_INFO: Record<StationId, { label: string; emoji: string; role?: Role }> = {
   you: { label: "Director desk", emoji: "💻" },
@@ -35,12 +35,17 @@ export function stationUnlocked(s: GameState, id: StationId): boolean {
 
 export function computeLayout(s: GameState): Layout {
   if (!s.founded) {
-    return { cols: 9, rows: 7, home: true, stations: [{ id: "you", ...STATION_INFO.you, label: "Your desk", x: 2, y: 2 }], desks: [], remote: [] };
+    return { cols: 9, rows: 7, home: true, stations: [{ id: "you", ...STATION_INFO.you, label: "Your desk", x: 2, y: 2 }], desks: [], remote: [], empty: [] };
   }
   const cols = OFFICES[s.officeLevel].cols;
   const perRow = Math.max(2, Math.floor((cols - 1) / 2));
   const stations: PlacedStation[] = [];
   const desks: PlacedDesk[] = [];
+  const empty: { x: number; y: number }[] = [];
+  const pad = (used: number, y0: number) => {
+    const total = Math.ceil(used / perRow) * perRow;
+    for (let slot = used; slot < total; slot++) empty.push({ x: 1 + 2 * (slot % perRow), y: y0 + 3 * Math.floor(slot / perRow) });
+  };
   let y = 2;
 
   // management row: you, partner, managers
@@ -52,6 +57,7 @@ export function computeLayout(s: GameState): Layout {
     const slot = 2 + i;
     desks.push({ emp: m, x: 1 + 2 * (slot % perRow), y: y + 3 * Math.floor(slot / perRow) });
   });
+  pad(mgmtSlots, y);
   y += 3 * Math.ceil(mgmtSlots / perRow);
 
   for (const id of ["eng", "ops", "design", "mkt", "support"] as StationId[]) {
@@ -63,11 +69,12 @@ export function computeLayout(s: GameState): Layout {
       const slot = 1 + i;
       desks.push({ emp: e, x: 1 + 2 * (slot % perRow), y: y + 3 * Math.floor(slot / perRow) });
     });
+    pad(1 + staff.length, y);
     y += 3 * Math.ceil((1 + staff.length) / perRow);
   }
   const remote: PlacedDesk[] = [];
   const rem = s.team.filter((e) => e.remote);
   rem.forEach((e, i) => remote.push({ emp: e, x: 1 + 2 * (i % perRow), y: y + 2 * Math.floor(i / perRow) }));
   if (rem.length) y += 2 * Math.ceil(rem.length / perRow) + 1;
-  return { cols, rows: y + 1, home: false, stations, desks, remote };
+  return { cols, rows: y + 1, home: false, stations, desks, remote, empty };
 }
