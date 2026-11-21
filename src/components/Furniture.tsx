@@ -295,3 +295,39 @@ export function DecorArt({ id }: { id: string }) {
       return wrap(<circle cx="26" cy="26" r="14" fill="#8b93a3" />);
   }
 }
+
+export function Vending() {
+  return (
+    <svg width="48" height="68" viewBox="0 0 48 68" aria-hidden>
+      <ellipse cx="24" cy="65" rx="20" ry="3" fill="rgba(0,0,0,.3)" />
+      <rect x="3" y="2" width="42" height="62" rx="5" fill="#d9304f" />
+      <rect x="8" y="7" width="26" height="36" rx="2" fill="#0f1730" />
+      {[0, 1, 2].map((r) => [0, 1, 2].map((c) => <rect key={r + "" + c} x={11 + c * 8} y={10 + r * 11} width="6" height="8" rx="1.5" fill={["#fbbf24", "#34d399", "#60a5fa", "#f472b6", "#fb923c"][(r * 3 + c) % 5]} />))}
+      <rect x="37" y="9" width="5" height="14" rx="1.5" fill="#fff" opacity=".85" />
+      <rect x="8" y="48" width="34" height="9" rx="2" fill="#7a1228" />
+    </svg>
+  );
+}
+
+export function CoffeeTable({ w = 44 }: { w?: number }) {
+  return (
+    <svg width={w} height={w * 0.7} viewBox="0 0 44 31" aria-hidden>
+      <ellipse cx="22" cy="27" rx="18" ry="3" fill="rgba(0,0,0,.28)" />
+      <ellipse cx="22" cy="14" rx="19" ry="11" fill="url(#gOak)" stroke="rgba(0,0,0,.2)" />
+      <rect x="14" y="9" width="9" height="6" rx="1" fill="#fff" />
+      <circle cx="30" cy="14" r="3" fill="#fff" stroke="#c3cad6" /><circle cx="30" cy="14" r="1.8" fill="#6b4226" />
+    </svg>
+  );
+}
+
+export function Cabinet() {
+  return (
+    <svg width="40" height="58" viewBox="0 0 40 58" aria-hidden>
+      <ellipse cx="20" cy="55" rx="16" ry="3" fill="rgba(0,0,0,.28)" />
+      <rect x="3" y="3" width="34" height="50" rx="3" fill="url(#gSteel)" stroke="#9aa3b2" />
+      {[0, 1, 2].map((i) => (
+        <g key={i}><rect x="6" y={6 + i * 15} width="28" height="12" rx="1.5" fill="#dfe3ea" stroke="#b4bcc9" /><rect x="16" y={11 + i * 15} width="8" height="2.4" rx="1.2" fill="#8b93a3" /></g>
+      ))}
+    </svg>
+  );
+}

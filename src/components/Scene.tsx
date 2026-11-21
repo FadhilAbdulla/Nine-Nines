@@ -6,7 +6,7 @@ import { computeLayout, STATION_INFO, TILE } from "@/game/layout";
 import type { StationId } from "@/game/types";
 import { useUI } from "@/store/useUI";
 import Avatar, { lookFor, PARTNER_LOOK, ROLE_SHIRT, SHIRTS } from "./Avatar";
-import { Bed, Bookshelf, DecorArt, Desk, GlassDoor, Lamp, Plant, Sofa, SvgDefs, Wall } from "./Furniture";
+import { Bed, Bookshelf, Cabinet, CoffeeTable, DecorArt, Desk, GlassDoor, Lamp, Plant, Sofa, SvgDefs, Vending, Wall } from "./Furniture";
 import { useAct, useG } from "./ui";
 
 type Near =
@@ -235,7 +235,7 @@ export default function Scene() {
       if (!el) return;
       const vw = el.clientWidth;
       const vh = el.clientHeight;
-      const target = Math.max(0.9, Math.min(1.5, vh / 640));
+      const target = Math.max(1, Math.min(1.7, vh / 560));
       const fitS = Math.min(vw / W, (vh - 120) / H);
       const sc = fitS >= target ? Math.min(fitS, 1.8) : target;
       setScale(sc);
@@ -283,6 +283,23 @@ export default function Scene() {
     const next = i + 1 < rowsY.length ? rowsY[i + 1] : zoneEnd;
     return { y, h: Math.max(2.4, next - y - 0.1), color, label };
   });
+  const sideItems: { left: boolean; y: number; dx: number; w: number; h: number; node: React.ReactNode }[] = [];
+  if (!L.home) {
+    const kinds = [
+      { w: 96, h: 48, node: <Sofa /> },
+      { w: 48, h: 68, node: <Vending /> },
+      { w: 44, h: 31, node: <CoffeeTable /> },
+      { w: 40, h: 58, node: <Cabinet /> },
+      { w: 64, h: 62, node: <Bookshelf /> },
+      { w: 44, h: 44, node: <Plant size={44} /> },
+    ];
+    for (let y = 2.9 * TILE, i = 0; y < H - 1.6 * TILE; y += 1.55 * TILE, i++) {
+      const k = kinds[i % kinds.length];
+      const k2 = kinds[(i + 3) % kinds.length];
+      sideItems.push({ left: true, y, dx: 0, ...k });
+      sideItems.push({ left: false, y: y + 0.4 * TILE, dx: 0, ...k2 });
+    }
+  }
   const accentFor = (role: keyof typeof ROLE_SHIRT) => SHIRTS[ROLE_SHIRT[role]];
 
   return (
@@ -300,8 +317,8 @@ export default function Scene() {
 
           <div className="content" style={{ left: ext.x, top: ext.top, width: W, height: H }}>
             {!L.home && zones.map((z) => (
-              <div key={z.y} className="zone" style={{ left: 0.45 * TILE - ext.x * 0, top: z.y * TILE - 6, width: W - 0.9 * TILE, height: z.h * TILE, ["--zc" as string]: z.color } as React.CSSProperties}>
-                <span>{z.label}</span>
+              <div key={z.y} className="zone" style={{ left: -ext.x + 10, top: z.y * TILE - 6, width: W + ext.x * 2 - 20, height: z.h * TILE, ["--zc" as string]: z.color } as React.CSSProperties}>
+                <span style={{ left: ext.x + 0.45 * TILE }}>{z.label}</span>
               </div>
             ))}
             {!L.home && (
@@ -324,14 +341,17 @@ export default function Scene() {
               <>
                 <span className="prop decor still" style={{ left: -ext.x + 8, top: 1.45 * TILE, width: 44, height: 44 }}><Plant size={44} /></span>
                 <span className="prop decor still" style={{ left: W + ext.x - 52, top: 1.45 * TILE, width: 44, height: 44 }}><Plant size={44} /></span>
-                {ext.x >= 70 && (
-                  <>
-                    <span className="prop decor still" style={{ left: -ext.x + 14, top: 3.6 * TILE, width: 96, height: 48 }}><Sofa /></span>
-                    <span className="prop decor still" style={{ left: W + ext.x - 110, top: 3.6 * TILE, width: 96, height: 48 }}><Sofa /></span>
-                  </>
-                )}
+                {ext.x >= 60 && sideItems.map((it, i) => (
+                  <span key={i} className="prop decor still" style={{ left: it.left ? -ext.x + 16 + it.dx : W + ext.x - 16 - it.dx - it.w, top: it.y, width: it.w, height: it.h }}>{it.node}</span>
+                ))}
               </>
             )}
+
+            {L.empty.map((e, i) => (
+              <div key={"g" + i} className="deskwrap ghost" style={{ left: e.x * TILE, top: e.y * TILE, width: TILE * 1.8, height: TILE * 2 }}>
+                <Desk accent="#94a3b8" flavor={i % 3} />
+              </div>
+            ))}
 
             {L.stations.map((st) => {
               const you = st.id === "you";
