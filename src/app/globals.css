@@ -519,3 +519,5 @@ kbd { font-family: var(--f-mono); font-size: 11px; background: var(--bg-3); bord
 .remote-tile .emo { top: 2px; right: 2px; }
 .needbars { display: grid; gap: 6px; }
 .needrow { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 8px; font-size: 12px; }
+
+.qbadge { position: absolute; left: 50%; top: -22px; transform: translateX(-50%); white-space: nowrap; font-style: normal; font-size: 11px; font-weight: 700; background: #ef4444; color: #fff; border-radius: 999px; padding: 1px 8px; box-shadow: 0 2px 8px rgba(0,0,0,.4); z-index: 6; }

@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { CAMPAIGNS, DECOR, FOCUS_INFO, IDEAS, OFFICES, PARTNER, ROLES, TOOLS, type ToolDef } from "@/game/data";
-import { AI_SEAT_MONTHLY, cancelTool, handsOnCooldown, sourceRole, remoteSalary, buyDecor, buyTool, deployCost, deployProduct, derive, designSprint, freeDesks, ideaUnlocked, refreshCandidatesPaid, runCampaign, setFocus, signingFee, startProduct, upgradeOffice, hire } from "@/game/engine";
+import { AI_SEAT_MONTHLY, cancelTool, decorCost, decorUnits, facilityReport, handsOnCooldown, sourceRole, remoteSalary, buyDecor, buyTool, deployCost, deployProduct, derive, designSprint, freeDesks, ideaUnlocked, refreshCandidatesPaid, runCampaign, setFocus, signingFee, startProduct, upgradeOffice, hire } from "@/game/engine";
 import { STATION_INFO } from "@/game/layout";
 import type { FounderFocus, Role, StationId } from "@/game/types";
 import { dailyRevenueAvg, emotionOf, money, num, totalUsers, valuation } from "@/game/util";
@@ -499,13 +499,21 @@ function PartnerDash() {
           ) : <p className="dim">You already have the finest HQ in the industry.</p>}
           <h3 className="sub">Furnish & perks</h3>
           {DECOR.map((x) => {
-            const owned = g.decor.includes(x.id);
+            const units = decorUnits(g, x.id);
+            const max = x.stack ?? 1;
+            const maxed = units >= max;
             const lock = g.officeLevel < x.minOffice ? `Needs ${OFFICES[x.minOffice].name}` : null;
+            const cost = decorCost(g, x.id);
             return (
-              <div key={x.id} className={`card ${owned ? "owned" : lock ? "locked" : ""}`}>
-                <div className="card-head"><strong>{x.emoji} {x.name}</strong><span className="mono">{owned ? "Owned" : money(x.cost)}</span></div>
+              <div key={x.id} className={`card ${units ? "owned" : lock ? "locked" : ""}`}>
+                <div className="card-head"><strong>{x.emoji} {x.name}</strong><span className="mono">{maxed ? "Maxed" : money(cost)}</span></div>
                 <p className="small">{x.desc}</p>
-                <button className="btn primary" disabled={owned || !!lock || g.cash < x.cost} onClick={() => act((s) => buyDecor(s, x.id))}>{owned ? "✓ In the office" : lock ? `🔒 ${lock}` : "Buy"}</button>
+                <div className="row">
+                  <button className="btn primary" disabled={maxed || !!lock || g.cash < cost} onClick={() => act((s) => buyDecor(s, x.id))}>
+                    {lock ? `🔒 ${lock}` : maxed ? (max > 1 ? `✓ All ${max} built` : "✓ In the office") : units ? "Add another" : "Buy"}
+                  </button>
+                  {max > 1 && <span className="dim small">{units} of {max} built{x.per ? ` · serves ${x.per * units} at once` : ""}</span>}
+                </div>
               </div>
             );
           })}
@@ -570,6 +578,16 @@ function DirectorDash() {
             <p className="dim small">{FOCUS_INFO[g.founderFocus].desc}</p>
             <div className="label">Management load: {d.reports} / {d.mgmtCap} {d.overload > 0 && <b className="badc">· overloaded, −{Math.round((1 - d.prodMult) * 100)}% output</b>}</div>
             <Bar value={d.mgmtCap - d.overload} max={Math.max(1, d.mgmtCap)} />
+          </div>
+          <div className="card">
+            <div className="label">Facilities & queues</div>
+            {facilityReport(g).map((f) => (
+              <div key={f.key} className="line">
+                <span>{f.label}</span>
+                <span className="mono small">{f.units === 0 ? "none: staff go out" : `${f.inUse}/${f.capacity} in use`}{f.queue > 0 ? <b className="badc"> · {f.queue} waiting</b> : ""}</span>
+              </div>
+            ))}
+            <p className="dim small">Queues make people frustrated, slow them down, and eventually send them out of the building. Add more washrooms, pantries or a food area as the team grows (Partner desk → Office).</p>
           </div>
           <h3 className="sub">Road to IPO</h3>
           <ul className="goals">{goals.map(([t, done]) => <li key={t} className={done ? "done" : ""}>{done ? "✔" : "○"} {t}</li>)}</ul>

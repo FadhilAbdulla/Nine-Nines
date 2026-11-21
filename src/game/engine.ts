@@ -49,8 +49,24 @@ export function newGame(founder: string, look: Look): GameState {
 
 // ---------- needs: energy, hunger, bladder ----------
 
+export const EAT_ORDER = ["foodcourt", "kitchen", "pantry"];
+export const REST_ORDER = ["lounge", "refreshment", "coffee"];
+type Occ = Record<string, number>;
+
+export function decorUnits(s: GameState, id: string): number {
+  return s.decor.filter((x) => x === id).length;
+}
+export function facCapacity(s: GameState, id: string): number {
+  return decorUnits(s, id) * (DECOR.find((x) => x.id === id)?.per ?? 1);
+}
+export function decorCost(s: GameState, id: string): number {
+  const d = DECOR.find((x) => x.id === id);
+  return d ? Math.round(d.cost * (1 + 0.3 * decorUnits(s, id))) : 0;
+}
+
 export function freshVitals(): Vitals {
-  return { energy: 85, hunger: 85, bladder: 85, doing: "work", awayLeft: 0 };
+  const r = (lo: number, hi: number) => Math.round(lo + Math.random() * (hi - lo));
+  return { energy: r(65, 95), hunger: r(60, 95), bladder: r(55, 95), doing: "work", awayLeft: 0 };
 }
 
 export function workFactor(v?: Vitals): number {
@@ -60,32 +76,77 @@ export function workFactor(v?: Vitals): number {
     case "coffee": return 0.5;
     case "nap": return 0.2;
     case "out_lunch": case "out_wc": return 0;
+    case "queue_wc": case "queue_eat": return 0.3;
     case "drowsy": return 0.7;
   }
   return v.hunger < 20 ? 0.85 : 1;
 }
 
+const IN_USE = ["eat", "washroom", "nap", "coffee"];
+export function occupancyNow(s: GameState): Occ {
+  const occ: Occ = {};
+  const add = (v?: Vitals) => { if (v?.where && IN_USE.includes(v.doing)) occ[v.where] = (occ[v.where] ?? 0) + 1; };
+  for (const e of s.team) if (!e.remote) add(e.vitals);
+  add(s.partnerVitals);
+  return occ;
+}
+
+export function facilityReport(s: GameState) {
+  const occ = occupancyNow(s);
+  const people = [...s.team.filter((e) => !e.remote).map((e) => e.vitals), s.partnerVitals].filter(Boolean) as Vitals[];
+  const sum = (ids: string[], f: (id: string) => number) => ids.reduce((a, id) => a + f(id), 0);
+  const mk = (key: "wc" | "eat" | "rest", label: string, ids: string[], queueDoing?: string) => ({
+    key, label,
+    units: sum(ids, (id) => decorUnits(s, id)),
+    capacity: sum(ids, (id) => facCapacity(s, id)),
+    inUse: sum(ids, (id) => occ[id] ?? 0),
+    queue: queueDoing ? people.filter((v) => v.doing === queueDoing).length : 0,
+  });
+  return [mk("wc", "Washrooms", ["washroom"], "queue_wc"), mk("eat", "Food & pantry", EAT_ORDER, "queue_eat"), mk("rest", "Rest & refreshment", REST_ORDER)];
+}
+
+function tryFacility(s: GameState, ids: string[], occ: Occ): string | null {
+  for (const id of ids) {
+    const cap = facCapacity(s, id);
+    if (cap > 0 && (occ[id] ?? 0) < cap) { occ[id] = (occ[id] ?? 0) + 1; return id; }
+  }
+  return null;
+}
+const owns = (s: GameState, ids: string[]) => ids.some((id) => decorUnits(s, id) > 0);
+
 /** Advance one day of needs. Returns a morale change for the person. */
-export function stepVitals(s: GameState, v: Vitals, remote: boolean): number {
+export function stepVitals(s: GameState, v: Vitals, remote: boolean, occ: Occ): number {
   let morale = 0;
-  const fac = {
-    washroom: s.decor.includes("washroom"),
-    pantry: s.decor.includes("pantry") || s.decor.includes("kitchen"),
-    lounge: s.decor.includes("lounge"),
-    coffee: s.decor.includes("coffee"),
-  };
+  const release = () => { if (v.where) { occ[v.where] = Math.max(0, (occ[v.where] ?? 1) - 1); v.where = undefined; } };
+
+  // waiting in a queue
+  if (v.doing === "queue_wc" || v.doing === "queue_eat") {
+    morale -= 1;
+    const wc = v.doing === "queue_wc";
+    const got = tryFacility(s, wc ? ["washroom"] : EAT_ORDER, occ);
+    if (got) { v.doing = wc ? "washroom" : "eat"; v.where = got; v.awayLeft = 1; }
+    else {
+      v.awayLeft += 1;
+      if (v.awayLeft >= 3) { v.doing = wc ? "out_wc" : "out_lunch"; v.awayLeft = 2; morale -= 2; }
+    }
+    return morale;
+  }
+
+  // away: finishing a trip
   if (v.doing !== "work" && v.doing !== "drowsy") {
     v.awayLeft -= 1;
     if (v.awayLeft <= 0) {
-      if (v.doing === "eat") { v.hunger = 95; if (s.decor.includes("kitchen")) morale += 2; }
+      if (v.doing === "eat") { v.hunger = 95; if (v.where === "kitchen") morale += 2; }
       else if (v.doing === "out_lunch") { v.hunger = 100; morale += 3; }
       else if (v.doing === "washroom" || v.doing === "out_wc") v.bladder = 100;
       else if (v.doing === "nap") v.energy = 92;
-      else if (v.doing === "coffee") v.energy = Math.min(100, v.energy + 38);
+      else if (v.doing === "coffee") v.energy = Math.min(100, v.energy + (v.where === "refreshment" ? 45 : 38));
+      release();
       v.doing = "work";
     }
     return morale;
   }
+
   if (v.doing === "drowsy") { v.energy += 3; if (v.energy >= 40) v.doing = "work"; }
   else v.energy -= 2;
   v.hunger -= 3;
@@ -93,16 +154,26 @@ export function stepVitals(s: GameState, v: Vitals, remote: boolean): number {
   v.energy = clamp(v.energy, 0, 100);
   v.hunger = clamp(v.hunger, 0, 100);
   v.bladder = clamp(v.bladder, 0, 100);
+
   if (v.hunger < 30) {
-    if (remote || fac.pantry) { v.doing = "eat"; v.awayLeft = 1; }
-    else { v.doing = "out_lunch"; v.awayLeft = 2; }
+    if (remote) { v.doing = "eat"; v.awayLeft = 1; }
+    else if (owns(s, EAT_ORDER)) {
+      const got = tryFacility(s, EAT_ORDER, occ);
+      if (got) { v.doing = "eat"; v.where = got; v.awayLeft = 1; } else { v.doing = "queue_eat"; v.awayLeft = 0; }
+    } else { v.doing = "out_lunch"; v.awayLeft = 2; }
   } else if (v.bladder < 25) {
-    if (remote || fac.washroom) { v.doing = "washroom"; v.awayLeft = 1; }
-    else { v.doing = "out_wc"; v.awayLeft = 2; morale -= 2; }
+    if (remote) { v.doing = "washroom"; v.awayLeft = 1; }
+    else if (owns(s, ["washroom"])) {
+      const got = tryFacility(s, ["washroom"], occ);
+      if (got) { v.doing = "washroom"; v.where = got; v.awayLeft = 1; } else { v.doing = "queue_wc"; v.awayLeft = 0; }
+    } else { v.doing = "out_wc"; v.awayLeft = 2; morale -= 2; }
   } else if (v.energy < 25 && v.doing === "work") {
-    if (remote || fac.lounge) { v.doing = "nap"; v.awayLeft = 2; }
-    else if (fac.coffee) { v.doing = "coffee"; v.awayLeft = 1; }
-    else v.doing = "drowsy";
+    if (remote) { v.doing = "nap"; v.awayLeft = 2; }
+    else {
+      const got = tryFacility(s, REST_ORDER, occ);
+      if (got) { v.doing = got === "lounge" ? "nap" : "coffee"; v.where = got; v.awayLeft = got === "lounge" ? 2 : 1; }
+      else v.doing = "drowsy";
+    }
   }
   return morale;
 }
@@ -119,7 +190,7 @@ export function derive(s: GameState) {
     const t = TOOLS.find((x) => x.id === id);
     if (t) for (const k of Object.keys(t.fx) as (keyof Fx)[]) fx[k] += t.fx[k] ?? 0;
   }
-  for (const id of s.decor) {
+  for (const id of new Set(s.decor)) {
     const d = DECOR.find((x) => x.id === id);
     if (d) for (const k of Object.keys(d.fx) as (keyof typeof d.fx)[]) fx[k] += d.fx[k] ?? 0;
   }
@@ -250,9 +321,10 @@ export function tick(s: GameState) {
   s.campaigns = s.campaigns.filter((c) => c.daysLeft > 0);
 
   // partner needs: when Maya is away, HR care pauses
+  const occ = occupancyNow(s);
   if (s.founded) {
     s.partnerVitals = s.partnerVitals ?? freshVitals();
-    stepVitals(s, s.partnerVitals, false);
+    stepVitals(s, s.partnerVitals, false, occ);
   }
   const hrOn = s.founded && workFactor(s.partnerVitals) >= 0.5;
 
@@ -260,7 +332,7 @@ export function tick(s: GameState) {
   const baseMorale = 58 + (hrOn ? 3 : 0) + d.fx.morale - d.overload * 4 + (s.founderFocus === "manage" ? 5 : 0) + (s.cash < 0 ? -10 : 0);
   for (const e of [...s.team]) {
     const v = (e.vitals = e.vitals ?? freshVitals());
-    e.morale = clamp(e.morale + stepVitals(s, v, !!e.remote), 0, 100);
+    e.morale = clamp(e.morale + stepVitals(s, v, !!e.remote, occ), 0, 100);
     const mkt = salaryFor(e.role, e.skill) * (e.remote ? 0.85 : 1);
     const payBonus = e.salary > mkt * 1.05 ? 6 : e.salary < mkt * 0.9 ? -8 : 0;
     const target = clamp(baseMorale + payBonus + (e.trait === "Night owl" ? -3 : 0) - (e.remote ? 4 + d.fx.morale * 0.5 : 0) - ((v.hunger < 20 ? 4 : 0) + (v.bladder < 15 ? 4 : 0) + (v.energy < 25 ? 3 : 0)), 5, 100);
@@ -585,12 +657,14 @@ export function buyTool(s: GameState, id: string): string | null {
 export function buyDecor(s: GameState, id: string): string | null {
   const t = DECOR.find((x) => x.id === id);
   if (!t) return "Unknown item.";
-  if (s.decor.includes(id)) return "You already own it.";
+  const have = decorUnits(s, id);
+  if (have >= (t.stack ?? 1)) return t.stack ? "You've built the maximum number of these." : "You already own it.";
   if (s.officeLevel < t.minOffice) return `Needs ${OFFICES[t.minOffice].name}.`;
-  if (s.cash < t.cost) return "Not enough cash.";
-  s.cash -= t.cost;
+  const cost = decorCost(s, id);
+  if (s.cash < cost) return "Not enough cash.";
+  s.cash -= cost;
   s.decor.push(id);
-  log(s, `Added ${t.name} to the office.`, "good");
+  log(s, have > 0 ? `Added another ${t.name} (${have + 1} now).` : `Added ${t.name} to the office.`, "good");
   return null;
 }
 

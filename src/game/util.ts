@@ -57,6 +57,7 @@ export function emotionOf(v: Vitals | undefined, morale: number): { emoji: strin
   if (d === "out_lunch") return { emoji: "🍔", label: "Out for food" };
   if (d === "washroom") return { emoji: "🚽", label: "At the washroom" };
   if (d === "out_wc") return { emoji: "🚽", label: "Out looking for a washroom" };
+  if (d === "queue_wc" || d === "queue_eat") return (v?.awayLeft ?? 0) >= 2 ? { emoji: "😤", label: "Fed up with the queue" } : { emoji: "😬", label: "Waiting in line" };
   if (d === "nap") return { emoji: "😴", label: "Napping" };
   if (d === "coffee") return { emoji: "☕", label: "Coffee break" };
   if (d === "drowsy") return { emoji: "🥱", label: "Drowsy" };

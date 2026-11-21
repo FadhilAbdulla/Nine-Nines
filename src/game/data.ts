@@ -69,18 +69,23 @@ export interface DecorDef {
   minOffice: number;
   fx: Partial<{ morale: number; dev: number; mgmt: number; design: number }>;
   pos: [number, number]; // [col, row] in scene (row from bottom region)
+  stack?: number; // max units you can build
+  per?: number; // people served at once, per unit
+  need?: "wc" | "eat" | "rest";
 }
 
 export const DECOR: DecorDef[] = [
-  { id: "washroom", name: "Washroom", emoji: "🚻", desc: "Staff stop leaving the building to find one. Fewer, shorter breaks.", cost: 220, minOffice: 0, fx: { morale: 2 }, pos: [0, 0] },
-  { id: "pantry", name: "Pantry & fridge", emoji: "🍱", desc: "Snacks and lunch in the office, so people don't leave to eat.", cost: 350, minOffice: 0, fx: { morale: 2 }, pos: [0, 0] },
-  { id: "lounge", name: "Nap lounge", emoji: "🛋️", desc: "A quiet sofa to recharge when someone is sleepy.", cost: 600, minOffice: 1, fx: { morale: 2 }, pos: [0, 0] },
+  { id: "washroom", name: "Washroom", emoji: "🚻", desc: "Staff stop leaving the building to find one, and it keeps them happy. Each washroom serves 2 people at a time. Add more as the team grows, or a queue forms.", cost: 220, minOffice: 0, fx: { morale: 3 }, pos: [0, 0], stack: 6, per: 2, need: "wc" },
+  { id: "pantry", name: "Pantry & fridge", emoji: "🍱", desc: "Snacks and lunch in the office. Each pantry serves 2 people at a time.", cost: 350, minOffice: 0, fx: { morale: 2 }, pos: [0, 0], stack: 4, per: 2, need: "eat" },
+  { id: "refreshment", name: "Refreshment area", emoji: "🧃", desc: "Tea, juice and coffee bar for quick recharges. Serves 3 at a time.", cost: 1_500, minOffice: 1, fx: { morale: 3 }, pos: [0, 0], stack: 3, per: 3, need: "rest" },
+  { id: "foodcourt", name: "Food area", emoji: "🍽️", desc: "A proper cafeteria for bigger teams. Each one serves 5 people at a time.", cost: 4_000, minOffice: 2, fx: { morale: 4 }, pos: [0, 0], stack: 4, per: 5, need: "eat" },
+  { id: "lounge", name: "Nap lounge", emoji: "🛋️", desc: "A quiet sofa to recharge when someone is sleepy. Serves 2 at a time.", cost: 600, minOffice: 1, fx: { morale: 2 }, pos: [0, 0], stack: 3, per: 2, need: "rest" },
   { id: "plants", name: "Plants", emoji: "🪴", desc: "Calming. Mostly alive.", cost: 120, minOffice: 0, fx: { morale: 3 }, pos: [0, 0] },
-  { id: "coffee", name: "Espresso machine", emoji: "☕", desc: "The real engine of any software company.", cost: 450, minOffice: 0, fx: { morale: 5 }, pos: [1, 0] },
+  { id: "coffee", name: "Espresso machine", emoji: "☕", desc: "The real engine of any software company. Serves 2 at a time for coffee breaks.", cost: 450, minOffice: 0, fx: { morale: 5 }, pos: [1, 0], per: 2, need: "rest" },
   { id: "whiteboard", name: "Whiteboard wall", emoji: "📝", desc: "Brainstorm for a quick boost. Passive +5% dev.", cost: 400, minOffice: 0, fx: { dev: 0.05 }, pos: [2, 0] },
   { id: "meeting", name: "Meeting room", emoji: "🪑", desc: "Managers handle 2 more people each.", cost: 3_000, minOffice: 1, fx: { mgmt: 2 }, pos: [3, 0] },
   { id: "game", name: "Game room", emoji: "🎮", desc: "Morale +6. Productivity dips for ten minutes at a time.", cost: 4_500, minOffice: 2, fx: { morale: 6 }, pos: [4, 0] },
-  { id: "kitchen", name: "Kitchen & chef", emoji: "🍜", desc: "Free lunch. Nobody ever leaves.", cost: 14_000, minOffice: 2, fx: { morale: 8 }, pos: [5, 0] },
+  { id: "kitchen", name: "Kitchen & chef", emoji: "🍜", desc: "Free lunch. Nobody ever leaves. Serves 4 at a time.", cost: 14_000, minOffice: 2, fx: { morale: 8 }, pos: [5, 0], per: 4, need: "eat" },
   { id: "studio", name: "Design studio", emoji: "🎬", desc: "Light, space, and big monitors. Design +15%.", cost: 20_000, minOffice: 3, fx: { design: 0.15 }, pos: [6, 0] },
   { id: "gym", name: "Rooftop gym", emoji: "🏋️", desc: "Morale +8. Lots of LinkedIn posts.", cost: 60_000, minOffice: 3, fx: { morale: 8 }, pos: [7, 0] },
 ];

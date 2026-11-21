@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { OFFICES } from "@/game/data";
-import { deriveStats, freeDesks } from "@/game/engine";
+import { deriveStats, facilityReport, freeDesks } from "@/game/engine";
 import type { GameState } from "@/game/types";
 import { CAMPAIGNS } from "@/game/data";
 import { dateLabel, money, num, totalUsers, valuation } from "@/game/util";
@@ -108,6 +108,9 @@ function nextHint(g: GameState): string | null {
   const live = g.products.filter((p) => p.status === "live");
   if (live.length && !g.campaigns.length && g.cash >= CAMPAIGNS[0].cost && totalUsers(g) < 3000) return "You're live! Walk to the Marketing desk and run a campaign to attract users.";
   if (d.load > 1) return "Servers are overloaded. Hire more DevOps or buy hosting tools at the DevOps desk.";
+  const fr = facilityReport(g);
+  if (fr[0].queue >= 2) return "There's a queue for the washroom. Add another at the Partner desk (Office tab).";
+  if (fr[1].queue >= 2) return "Long lunch queue. Add a pantry or a Food area at the Partner desk (Office tab).";
   if (d.overload > 0) return "Your team is overloaded. Hire a manager (each handles 6 people) or set your focus to Manage at your desk.";
   if (d.coverage < 0.7) return "Support tickets are piling up. Hire support staff or buy helpdesk software.";
   if (freeDesks(g) <= 0 && g.officeLevel < OFFICES.length - 1) return "You're out of desks. Ask your partner about a bigger office.";

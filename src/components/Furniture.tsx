@@ -286,6 +286,24 @@ export function DecorArt({ id }: { id: string }) {
           <circle cx="39.5" cy="22" r="4.5" fill="#ef4444" /><rect x="37" y="17" width="5" height="3" rx="1" fill="#16a34a" />
         </>
       );
+    case "refreshment":
+      return wrap(
+        <>
+          <rect x="6" y="22" width="40" height="22" rx="3" fill="url(#gOak)" stroke="rgba(0,0,0,.25)" />
+          <rect x="10" y="6" width="14" height="18" rx="3" fill="#e9eef5" stroke="#9aa6b8" />
+          <circle cx="17" cy="14" r="3.5" fill="#f59e0b" />
+          <rect x="30" y="12" width="6" height="10" rx="2" fill="#38bdf8" /><rect x="38" y="14" width="5" height="8" rx="2" fill="#f472b6" />
+        </>
+      );
+    case "foodcourt":
+      return wrap(
+        <>
+          <rect x="2" y="24" width="48" height="8" rx="3" fill="url(#gOak)" stroke="rgba(0,0,0,.25)" />
+          <circle cx="12" cy="20" r="4.5" fill="#ef4444" /><circle cx="26" cy="19" r="4.5" fill="#f59e0b" /><circle cx="40" cy="20" r="4.5" fill="#22c55e" />
+          <rect x="6" y="32" width="4" height="12" fill="#6b7280" /><rect x="42" y="32" width="4" height="12" fill="#6b7280" />
+          <rect x="14" y="34" width="24" height="8" rx="2" fill="#475569" />
+        </>
+      );
     case "lounge":
       return wrap(
         <>

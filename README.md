@@ -54,6 +54,8 @@ Staff, and Maya, have **energy, hunger and bladder**. You see their mood above t
 - When a need runs low they **walk** to take care of it, then walk back to their desk. While away they produce little or nothing.
 - With no facilities they have to **go out** (the door) for food or a washroom, which takes longer. Buy a **Washroom**, a **Pantry & fridge** (or the Kitchen & chef) and a **Nap lounge**, or an Espresso machine for a coffee break, and they stay close and lose less time.
 - When Maya steps away, her HR care (+3 morale and check-ins) pauses.
+- **Queues.** Every facility serves only a few people at a time (washroom 2, pantry 2, refreshment area 3, food area 5, kitchen 4, lounge 2). When it's full, people **line up** next to it, with a red "n waiting" badge. Waiting makes them frustrated and slow, and after three days they give up and go out.
+- **Build more as you grow.** Washrooms, pantries, refreshment areas and food areas can be built several times (each extra costs 30% more). The Director dashboard has a *Facilities & queues* card showing capacity and who is waiting. Bigger offices unlock the Refreshment area and the Food area. Washrooms, pantries and refreshment areas also raise morale.
 - Remote staff use their own facilities at home.
 
 ### Office or remote
