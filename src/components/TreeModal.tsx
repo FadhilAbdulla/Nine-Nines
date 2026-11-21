@@ -31,7 +31,7 @@ export default function TreeModal() {
             <li>
               <div className="tnode top">
                 <div className="duo">
-                  <div><Avatar look={g.look} role="you" size={46} /><b>{g.founder}</b><span className="dim small">Founder · Director</span></div>
+                  <div><Avatar look={g.look} role="you" size={46} /><b>You</b><span className="dim small">{g.founder} · Founder & Director</span></div>
                   {g.founded && <div><Avatar look={PARTNER_LOOK} role="partner" size={46} /><b>{PARTNER.name}</b><span className="dim small">Co-founder · People & Admin</span></div>}
                 </div>
               </div>

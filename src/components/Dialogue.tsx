@@ -75,7 +75,7 @@ export default function Dialogue() {
   useEffect(() => { if (choosing && ev?.input) inputRef.current?.focus(); }, [choosing, ev]);
 
   if (!ev || !line) return null;
-  const speakerName = line.who === "maya" ? PARTNER.name : line.who === "you" ? g.founder : "";
+  const speakerName = line.who === "maya" ? PARTNER.name : line.who === "you" ? "You" : "";
   const last = idx >= lines.length - 1;
 
   return (

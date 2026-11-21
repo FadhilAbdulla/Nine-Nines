@@ -87,7 +87,19 @@ export const EVENTS: GameEvent[] = [
     title: "The prototype is stuck",
     cond: (s) => s.founded && !hasRole(s, "dev") && !!building(s) && building(s)!.progress >= building(s)!.cost * 0.6 - 0.5,
     body: () => `You've taken the prototype as far as one person can. The code works on your laptop, mostly. Parts of it are held together with comments that say "TODO fix later".\n\n@maya You have two choices. Go to the Engineering desk and finish the code yourself, by hand, or let me hire an application engineer. I handle the HR side either way.`,
-    choices: [{ label: "Go find an engineer", apply: () => "You rub your eyes. For the first time, you're not alone in this." }],
+    choices: [
+      { label: "Go find an engineer", hint: "Maya handles hiring. Your engineer builds, you can focus on the business", apply: () => "You rub your eyes. For the first time, you're not alone in this." },
+      {
+        label: "Code it myself with AI help",
+        hint: "No hire. But you run EVERYTHING else too: deploys, marketing, support",
+        apply: (s) => {
+          s.flags.aiSolo = true;
+          s.founderFocus = "code";
+          log(s, "You opened an AI pair-programmer and kept shipping solo. You are now the whole company.", "story");
+          return `You paste the stack trace into an AI assistant. It answers faster than any teammate could, and it never asks for a raise.\n\n@maya Fine, solo it is. But listen: an AI can write the code, it can't run the company. You still have to deploy it, market it and answer every support ticket yourself, at the DevOps, Marketing and Support desks. Burn out if you must, but I'd hire help the moment cash allows.`;
+        },
+      },
+    ],
   },
   {
     id: "built_notice",

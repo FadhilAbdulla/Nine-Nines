@@ -38,7 +38,11 @@ export default function Hud() {
       <div className={`hud-cash ${flash ?? ""} ${g.cash < 0 ? "neg" : ""}`} title="Company cash">
         <span className="label">{g.founded ? "Company cash" : "Your savings"}</span>
         <b className="mono">{money(g.cash)}</b>
-        <span className={`mono small ${net >= 0 ? "goodc" : "warnc"}`}>{net >= 0 ? "+" : ""}{money(net)}/day</span>
+        <span className="cash-flow mono small" title={`Per day: income ${money(d.revenue)}, expenses ${money(d.burn)}`}>
+          <span className="cf-in">▲ +{money(d.revenue)}</span>
+          <span className="cf-out">▼ −{money(d.burn)}</span>
+          <span className={`cf-net ${net >= 0 ? "goodc" : "warnc"}`}>= {net >= 0 ? "+" : "−"}{money(Math.abs(net))}/day</span>
+        </span>
       </div>
 
       <div className="hud-right">
