@@ -1,4 +1,4 @@
-import type { GameState, LogEntry } from "./types";
+import type { GameState, LogEntry, Vitals } from "./types";
 
 export const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 export const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
@@ -49,4 +49,22 @@ export function dateLabel(day: number): string {
   const m = Math.floor(((day - 1) % 360) / 30) + 1;
   const d = ((day - 1) % 30) + 1;
   return `Year ${y} · Month ${m} · Day ${d}`;
+}
+
+export function emotionOf(v: Vitals | undefined, morale: number): { emoji: string; label: string } {
+  const d = v?.doing ?? "work";
+  if (d === "eat") return { emoji: "🍽️", label: "Having lunch" };
+  if (d === "out_lunch") return { emoji: "🍔", label: "Out for food" };
+  if (d === "washroom") return { emoji: "🚽", label: "At the washroom" };
+  if (d === "out_wc") return { emoji: "🚽", label: "Out looking for a washroom" };
+  if (d === "nap") return { emoji: "😴", label: "Napping" };
+  if (d === "coffee") return { emoji: "☕", label: "Coffee break" };
+  if (d === "drowsy") return { emoji: "🥱", label: "Drowsy" };
+  if (v && v.energy < 35) return { emoji: "😴", label: "Sleepy" };
+  if (v && v.hunger < 35) return { emoji: "🤤", label: "Hungry" };
+  if (v && v.bladder < 30) return { emoji: "😖", label: "Needs the washroom" };
+  if (morale < 30) return { emoji: "😡", label: "Furious" };
+  if (morale < 45) return { emoji: "😟", label: "Stressed" };
+  if (morale > 80) return { emoji: "😄", label: "Happy" };
+  return { emoji: "🙂", label: "Doing fine" };
 }

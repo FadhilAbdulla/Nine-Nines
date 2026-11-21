@@ -594,3 +594,17 @@ kbd { font-family: var(--f-mono); font-size: 11px; background: var(--bg-3); bord
 .cash-flow .cf-net { font-size: 11px; opacity: .85; border-top: 1px solid rgba(255,255,255,.15); margin-top: 1px; padding-top: 1px; }
 .hud-cash { align-items: center; }
 .cash-flow .cf-in, .cash-flow .cf-out { font-size: 13px; }
+
+.q-opt.struck { text-decoration: line-through; opacity: .45; }
+
+/* ---------- v7: walking staff + emotions ---------- */
+.npc { position: absolute; left: 0; top: 0; width: 52px; display: flex; flex-direction: column; align-items: center; z-index: 4; pointer-events: none; will-change: transform; }
+.npc .nm { font-size: 10px; font-weight: 700; background: rgba(0,0,0,.6); border-radius: 6px; padding: 0 6px; margin-top: -1px; color: #fff; }
+.npc.mg .nm { background: rgba(22,120,80,.88); } .npc.mw .nm { background: rgba(160,120,10,.92); } .npc.mb .nm { background: rgba(170,40,40,.92); }
+.npc.near .nm { outline: 2px solid var(--accent); }
+.npc .avatar { filter: drop-shadow(0 3px 2px rgba(0,0,0,.3)); }
+.emo { position: absolute; top: -14px; right: -4px; z-index: 5; font-size: 15px; line-height: 1; background: rgba(15,20,36,.88); border: 1px solid rgba(255,255,255,.25); border-radius: 999px; padding: 2px 4px; box-shadow: 0 2px 6px rgba(0,0,0,.4); animation: emobob 1.6s ease-in-out infinite alternate; }
+@keyframes emobob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+.remote-tile .emo { top: 2px; right: 2px; }
+.needbars { display: grid; gap: 6px; }
+.needrow { display: grid; grid-template-columns: 74px 1fr; align-items: center; gap: 8px; font-size: 12px; }

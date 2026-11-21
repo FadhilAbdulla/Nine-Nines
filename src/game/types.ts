@@ -4,6 +4,9 @@ export interface Look { skin: number; hair: number; hairColor: number; shirt: nu
 export type FounderFocus = "code" | "market" | "support" | "manage";
 export type Background = "engineer" | "marketer" | "heir";
 
+export type Doing = "work" | "eat" | "washroom" | "nap" | "coffee" | "drowsy" | "out_lunch" | "out_wc";
+export interface Vitals { energy: number; hunger: number; bladder: number; doing: Doing; awayLeft: number }
+
 export interface Employee {
   id: string;
   name: string;
@@ -15,6 +18,7 @@ export interface Employee {
   trait: string;
   lowDays: number; // consecutive days of very low morale
   remote?: boolean;
+  vitals?: Vitals;
 }
 
 export interface Candidate {
@@ -119,5 +123,6 @@ export interface GameState {
   peakUsers: number;
   supportBoost?: { until: number; mult: number };
   refreshUntil?: number; // 'Refreshed' buff after a park coffee or a proper rest
+  partnerVitals?: Vitals;
   seq: number;
 }

@@ -266,6 +266,35 @@ export function DecorArt({ id }: { id: string }) {
           <rect x="17" y="36" width="18" height="4" rx="2" fill="#f59e0b" />
         </>
       );
+    case "washroom":
+      return wrap(
+        <>
+          <rect x="10" y="4" width="32" height="42" rx="4" fill="#5b86b8" stroke="#2d4a73" strokeWidth="1.5" />
+          <rect x="14" y="9" width="24" height="30" rx="2" fill="#7fb0e0" />
+          <circle cx="35" cy="26" r="1.6" fill="#fde68a" />
+          <rect x="18" y="12" width="16" height="9" rx="2" fill="#fff" />
+          <text x="26" y="19.5" textAnchor="middle" fontSize="7.5" fontWeight="700" fill="#2d4a73">WC</text>
+        </>
+      );
+    case "pantry":
+      return wrap(
+        <>
+          <rect x="8" y="4" width="22" height="42" rx="3" fill="#e9eef5" stroke="#9aa6b8" />
+          <rect x="8" y="21" width="22" height="2" fill="#9aa6b8" />
+          <rect x="26" y="10" width="2" height="8" rx="1" fill="#7a869a" /><rect x="26" y="27" width="2" height="10" rx="1" fill="#7a869a" />
+          <rect x="33" y="26" width="13" height="20" rx="2" fill="url(#gOak)" />
+          <circle cx="39.5" cy="22" r="4.5" fill="#ef4444" /><rect x="37" y="17" width="5" height="3" rx="1" fill="#16a34a" />
+        </>
+      );
+    case "lounge":
+      return wrap(
+        <>
+          <rect x="3" y="20" width="46" height="20" rx="8" fill="#2f8f83" />
+          <rect x="3" y="12" width="46" height="14" rx="7" fill="#37a396" />
+          <rect x="8" y="24" width="16" height="13" rx="5" fill="#46b8aa" /><rect x="28" y="24" width="16" height="13" rx="5" fill="#46b8aa" />
+          <rect x="6" y="38" width="4" height="6" rx="2" fill="#1f5f57" /><rect x="42" y="38" width="4" height="6" rx="2" fill="#1f5f57" />
+        </>
+      );
     case "kitchen":
       return wrap(
         <>

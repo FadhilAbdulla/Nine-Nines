@@ -42,6 +42,7 @@ export interface ToolDef {
 }
 
 export const TOOLS: ToolDef[] = [
+  { id: "ai", dept: "eng", name: "AI coding assistant", emoji: "🤖", desc: "Pair-program with AI. Your own coding is 30% faster and hands-on sessions give 25% more progress, with a hint in coding quizzes. Your engineers get +8%. Billed per seat: you plus every application engineer.", cost: 0, monthly: 20, fx: {} },
   { id: "laptop", dept: "eng", name: "Proper laptops", emoji: "💻", desc: "Builds stop taking a coffee break.", cost: 900, fx: { dev: 0.1 } },
   { id: "monitor", dept: "eng", name: "Dual monitors", emoji: "🖥️", desc: "Twice the windows, twice the confidence.", cost: 450, fx: { dev: 0.06, design: 0.06 } },
   { id: "ide", dept: "eng", name: "Pro IDE licenses", emoji: "⌨️", desc: "Autocomplete that actually completes.", cost: 300, monthly: 40, fx: { dev: 0.1 } },
@@ -71,6 +72,9 @@ export interface DecorDef {
 }
 
 export const DECOR: DecorDef[] = [
+  { id: "washroom", name: "Washroom", emoji: "🚻", desc: "Staff stop leaving the building to find one. Fewer, shorter breaks.", cost: 220, minOffice: 0, fx: { morale: 2 }, pos: [0, 0] },
+  { id: "pantry", name: "Pantry & fridge", emoji: "🍱", desc: "Snacks and lunch in the office, so people don't leave to eat.", cost: 350, minOffice: 0, fx: { morale: 2 }, pos: [0, 0] },
+  { id: "lounge", name: "Nap lounge", emoji: "🛋️", desc: "A quiet sofa to recharge when someone is sleepy.", cost: 600, minOffice: 1, fx: { morale: 2 }, pos: [0, 0] },
   { id: "plants", name: "Plants", emoji: "🪴", desc: "Calming. Mostly alive.", cost: 120, minOffice: 0, fx: { morale: 3 }, pos: [0, 0] },
   { id: "coffee", name: "Espresso machine", emoji: "☕", desc: "The real engine of any software company.", cost: 450, minOffice: 0, fx: { morale: 5 }, pos: [1, 0] },
   { id: "whiteboard", name: "Whiteboard wall", emoji: "📝", desc: "Brainstorm for a quick boost. Passive +5% dev.", cost: 400, minOffice: 0, fx: { dev: 0.05 }, pos: [2, 0] },

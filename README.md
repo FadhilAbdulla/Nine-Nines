@@ -43,7 +43,18 @@ Every job has two options. At each department desk you can **do it yourself** or
 | Marketing | Plan each campaign: audience, channel, headline. Good plans boost its effectiveness. | Marketers boost every campaign |
 | Support | Reply to customer tickets. Good replies boost capacity for 8 days. | Support staff clear tickets daily |
 
+**AI coding assistant (subscription).** Coding yourself can use an AI assistant: $20/month per seat (you plus every application engineer), shown as its own line in your burn. It makes your solo coding 30% faster, hands-on sessions give 25% more progress, quizzes get an "Ask AI" hint, and engineers get +8%. Cancel any time from the Engineering dashboard.
+
 **Maya is your HR manager.** She sources and screens candidates (shown inline on every desk's dashboard), keeps everyone's morale +3, and runs check-ins when someone drops below 40.
+
+### Needs and emotions
+
+Staff, and Maya, have **energy, hunger and bladder**. You see their mood above their head (😴 sleepy, 🤤 hungry, 😖 needs the washroom, 😟 stressed, 😄 happy), and their needs show on their card.
+
+- When a need runs low they **walk** to take care of it, then walk back to their desk. While away they produce little or nothing.
+- With no facilities they have to **go out** (the door) for food or a washroom, which takes longer. Buy a **Washroom**, a **Pantry & fridge** (or the Kitchen & chef) and a **Nap lounge**, or an Espresso machine for a coffee break, and they stay close and lose less time.
+- When Maya steps away, her HR care (+3 morale and check-ins) pauses.
+- Remote staff use their own facilities at home.
 
 ### Office or remote
 
