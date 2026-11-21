@@ -201,6 +201,17 @@ function Products() {
   );
 }
 
+function AiCard({ can, cd }: { can: boolean; cd: number }) {
+  const openHands = useUI((u) => u.openHands);
+  return (
+    <div className="card">
+      <strong>🤖 Code with AI</strong>
+      <p className="small">Solve a real task by writing the prompt yourself. A sharp prompt ships clean code fast. A vague one ships bugs, security holes and invented packages. AI only writes code: you still run marketing, deploys and support.</p>
+      <button className="btn" disabled={!can || cd > 0} onClick={() => openHands({ kind: "aicode" })}>{cd > 0 ? `Resting ${cd}d` : "🤖 Write a prompt"}</button>
+    </div>
+  );
+}
+
 function EngDash() {
   const g = useG();
   const openHands = useUI((u) => u.openHands);
@@ -215,6 +226,7 @@ function EngDash() {
           <p className="small">It's just you. Write the code by hand: you handle the technical details and your score sets the progress. Passive coding also continues while you wait.</p>
           <button className="btn primary" disabled={!can || cd > 0} onClick={() => openHands({ kind: "code" })}>{cd > 0 ? `Resting ${cd}d` : "⌨️ Code a feature"}</button>
         </div>
+        <AiCard can={!!can} cd={cd} />
         <Products />
       </>
     );
@@ -230,6 +242,7 @@ function EngDash() {
         mineDisabled={!can ? "Pick a product in development first" : cd > 0 ? `Resting ${cd}d` : null}
         onMine={() => openHands({ kind: "code" })}
       />
+      <AiCard can={!!can} cd={cd} />
       <Products />
       <ToolList dept="eng" />
     </>

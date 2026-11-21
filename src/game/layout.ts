@@ -5,7 +5,7 @@ export const TILE = 52;
 
 export interface PlacedStation { id: StationId; label: string; emoji: string; x: number; y: number }
 export interface PlacedDesk { x: number; y: number; emp: Employee }
-export interface Layout { cols: number; rows: number; home: boolean; stations: PlacedStation[]; desks: PlacedDesk[]; remote: PlacedDesk[]; empty: { x: number; y: number }[] }
+export interface Layout { cols: number; rows: number; home: boolean; park: boolean; stations: PlacedStation[]; desks: PlacedDesk[]; remote: PlacedDesk[]; empty: { x: number; y: number }[] }
 
 export const STATION_INFO: Record<StationId, { label: string; emoji: string; role?: Role }> = {
   you: { label: "Director desk", emoji: "💻" },
@@ -33,9 +33,12 @@ export function stationUnlocked(s: GameState, id: StationId): boolean {
   }
 }
 
-export function computeLayout(s: GameState): Layout {
-  if (!s.founded) {
-    return { cols: 9, rows: 7, home: true, stations: [{ id: "you", ...STATION_INFO.you, label: "Your desk", x: 2, y: 2 }], desks: [], remote: [], empty: [] };
+export type Place = "office" | "home" | "park";
+
+export function computeLayout(s: GameState, place: Place = "office"): Layout {
+  if (s.founded && place === "park") return { cols: 13, rows: 9, home: false, park: true, stations: [], desks: [], remote: [], empty: [] };
+  if (!s.founded || place === "home") {
+    return { cols: 9, rows: 7, home: true, park: false, stations: [{ id: "you", ...STATION_INFO.you, label: "Your desk", x: 2, y: 2 }], desks: [], remote: [], empty: [] };
   }
   const cols = OFFICES[s.officeLevel].cols;
   const perRow = Math.max(2, Math.floor((cols - 1) / 2));
@@ -76,5 +79,5 @@ export function computeLayout(s: GameState): Layout {
   const rem = s.team.filter((e) => e.remote);
   rem.forEach((e, i) => remote.push({ emp: e, x: 1 + 2 * (i % perRow), y: y + 2 * Math.floor(i / perRow) }));
   if (rem.length) y += 2 * Math.ceil(rem.length / perRow) + 1;
-  return { cols, rows: y + 1, home: false, stations, desks, remote, empty };
+  return { cols, rows: y + 1, home: false, park: false, stations, desks, remote, empty };
 }

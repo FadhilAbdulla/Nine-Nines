@@ -331,3 +331,91 @@ export function Cabinet() {
     </svg>
   );
 }
+
+export function Tree({ size = 72, tone = 0 }: { size?: number; tone?: number }) {
+  const g = [["#2f9e5f", "#3fbf77", "#52d68a"], ["#3a8f4f", "#4cae66", "#6bd08a"]][tone % 2];
+  return (
+    <svg width={size} height={size * 1.25} viewBox="0 0 72 90" aria-hidden>
+      <ellipse cx="36" cy="84" rx="24" ry="5" fill="rgba(0,0,0,.28)" />
+      <rect x="31" y="52" width="10" height="30" rx="3" fill="#7a5230" />
+      <circle cx="36" cy="34" r="26" fill={g[0]} />
+      <circle cx="24" cy="42" r="16" fill={g[1]} />
+      <circle cx="48" cy="40" r="17" fill={g[1]} />
+      <circle cx="34" cy="26" r="15" fill={g[2]} />
+    </svg>
+  );
+}
+
+export function Bench() {
+  return (
+    <svg width="94" height="48" viewBox="0 0 94 48" aria-hidden>
+      <ellipse cx="47" cy="43" rx="40" ry="4" fill="rgba(0,0,0,.28)" />
+      <rect x="8" y="26" width="6" height="16" rx="2" fill="#2b3245" />
+      <rect x="80" y="26" width="6" height="16" rx="2" fill="#2b3245" />
+      <rect x="4" y="6" width="86" height="8" rx="3" fill="url(#gOak)" />
+      <rect x="4" y="16" width="86" height="8" rx="3" fill="url(#gOak)" />
+      <rect x="4" y="28" width="86" height="8" rx="3" fill="#a9763a" />
+    </svg>
+  );
+}
+
+export function CoffeeCart() {
+  return (
+    <svg width="96" height="84" viewBox="0 0 96 84" aria-hidden>
+      <ellipse cx="48" cy="78" rx="40" ry="5" fill="rgba(0,0,0,.28)" />
+      <path d="M8 24 Q48 -8 88 24 Z" fill="#e8483c" />
+      <path d="M8 24 Q28 4 48 4 Q40 14 38 24 Z M48 4 Q68 4 88 24 L58 24 Q56 14 48 4 Z" fill="#fff" opacity=".9" />
+      <rect x="47" y="24" width="2.4" height="30" fill="#8b93a3" />
+      <rect x="10" y="44" width="76" height="30" rx="5" fill="#f4e6cf" stroke="#b98748" strokeWidth="1.5" />
+      <rect x="10" y="44" width="76" height="8" rx="4" fill="url(#gOak)" />
+      <rect x="22" y="30" width="14" height="14" rx="3" fill="#2b3245" />
+      <rect x="58" y="36" width="8" height="8" rx="2" fill="#fff" stroke="#c3cad6" /><rect x="59.5" y="37.5" width="5" height="2.5" fill="#6b4226" />
+      <circle cx="26" cy="76" r="5" fill="#2b3245" /><circle cx="70" cy="76" r="5" fill="#2b3245" />
+      <rect x="28" y="58" width="40" height="10" rx="2" fill="#e8483c" opacity=".9" />
+    </svg>
+  );
+}
+
+export function Gate() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 84 78" preserveAspectRatio="none" aria-hidden>
+      <rect x="4" y="12" width="8" height="66" rx="2" fill="#6e4a22" />
+      <rect x="72" y="12" width="8" height="66" rx="2" fill="#6e4a22" />
+      <path d="M4 18 Q42 -10 80 18 L80 28 Q42 2 4 28 Z" fill="#8a5a2b" />
+      <path d="M12 40 H72 M12 56 H72" stroke="#c89b63" strokeWidth="3" />
+      <circle cx="42" cy="12" r="4" fill="#52d68a" />
+    </svg>
+  );
+}
+
+/** Daytime sky with hills, in place of the office wall. */
+export function Sky({ width, height }: { width: number; height: number }) {
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} style={{ position: "absolute", left: 0, top: 0, overflow: "visible" }} aria-hidden>
+      <defs>
+        <linearGradient id="gDaySky" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#6cc0ff" />
+          <stop offset="1" stopColor="#cdeeff" />
+        </linearGradient>
+      </defs>
+      <rect width={width} height={height} fill="url(#gDaySky)" />
+      <circle cx={width * 0.82} cy={height * 0.45} r="16" fill="#fff6c8" />
+      {[0.12, 0.38, 0.62].map((f, i) => (
+        <g key={i} fill="#fff" opacity=".9" transform={`translate(${width * f},${height * (0.3 + (i % 2) * 0.15)})`}>
+          <ellipse cx="0" cy="0" rx="26" ry="8" /><ellipse cx="14" cy="-5" rx="16" ry="8" /><ellipse cx="-12" cy="-3" rx="12" ry="6" />
+        </g>
+      ))}
+      <path d={`M0 ${height} V${height - 18} Q${width * 0.15} ${height - 40} ${width * 0.3} ${height - 20} T${width * 0.6} ${height - 24} T${width} ${height - 22} V${height} Z`} fill="#6fbf6a" />
+    </svg>
+  );
+}
+
+export function Flowers() {
+  return (
+    <svg width="38" height="24" viewBox="0 0 38 24" aria-hidden>
+      {[[6, 14, "#ff6b9d"], [18, 8, "#ffd166"], [30, 15, "#fff"], [12, 19, "#ffd166"], [26, 20, "#ff6b9d"]].map(([x, y, c], i) => (
+        <g key={i}><rect x={+x - 0.5} y={+y} width="1.4" height="6" fill="#2f9e5f" /><circle cx={x as number} cy={y as number} r="3.4" fill={c as string} /><circle cx={x as number} cy={y as number} r="1.2" fill="#f59e0b" /></g>
+      ))}
+    </svg>
+  );
+}

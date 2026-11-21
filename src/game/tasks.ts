@@ -115,3 +115,76 @@ export function shuffle<T>(arr: T[]): T[] {
 export function pickN<T>(arr: T[], n: number): T[] {
   return shuffle(arr).slice(0, n);
 }
+
+/* ---------- coding with AI: you write the prompt ---------- */
+
+export interface PromptCheck {
+  id: string;
+  label: string; // what a strong prompt includes
+  test: RegExp;
+  problem: string; // what goes wrong when it's missing
+}
+
+export interface PromptTask {
+  id: string;
+  title: string;
+  scenario: string;
+  checks: PromptCheck[];
+}
+
+export const PROMPT_TASKS: PromptTask[] = [
+  {
+    id: "share",
+    title: "Feature: share a todo list by link",
+    scenario: "Users keep asking to share a todo list with a friend using a link. Your stack is Next.js, TypeScript and Postgres. Write the prompt that gets the AI to build this safely.",
+    checks: [
+      { id: "stack", label: "Your stack (framework, language, database)", test: /(next|react|typescript|postgres|node|stack|framework|database)/i, problem: "You never named your stack. The AI guessed Vue + Firebase and wrote code that doesn't fit your project: a day of rewrites." },
+      { id: "reqs", label: "Clear requirements (what exactly it must do)", test: /(must|should|requirement|acceptance|user can|users can|\n\s*(-|\*|\d[.)]))/i, problem: "The goal was vague, so the AI also built accounts, teams and a comments system you never asked for (scope creep)." },
+      { id: "security", label: "Security rules (unguessable links, read-only, permissions)", test: /(unguessable|random|uuid|token|expire|expiry|read[- ]only|permission|private|authori[sz]|secur)/i, problem: "Share links used sequential IDs (/share/1, /share/2). Anyone can read everyone's lists: a data leak." },
+      { id: "edge", label: "Edge cases (expired, deleted or invalid links, errors)", test: /(edge case|empty|expired|invalid|not found|404|error|fail|revoke|delete)/i, problem: "Nobody mentioned edge cases, so an expired or deleted link crashes the page with a white screen." },
+      { id: "tests", label: "Tests or a review step (verify, explain, add tests)", test: /(test|jest|vitest|unit|verify|explain|step[- ]by[- ]step|review)/i, problem: "No tests or explanation: the AI imported a package that doesn't exist (react-share-links-pro) and nothing caught it until deploy." },
+    ],
+  },
+  {
+    id: "crash",
+    title: "Bug: the app crashes on an empty list",
+    scenario: "Users report: \"The app crashes when my todo list is empty.\" Your logs say: TypeError: Cannot read properties of undefined (reading 'map') in TodoList.tsx. Write the prompt that gets a correct, minimal fix.",
+    checks: [
+      { id: "error", label: "The exact error and file", test: /(typeerror|cannot read|undefined|\.map|todolist|stack ?trace|error message)/i, problem: "You didn't paste the error. The AI rewrote the whole data layer instead of fixing the one failing line." },
+      { id: "expected", label: "Expected behaviour (what should happen instead)", test: /(expect|should|instead|empty (list|state)|show (a|an) .*message)/i, problem: "No expected behaviour: the AI 'fixed' the crash by hiding the todo list entirely." },
+      { id: "repro", label: "How to reproduce it", test: /(steps?|repro|happens when|when (i|a user|the user|there)|after|click|open)/i, problem: "No reproduction steps: the AI fixed a different bug that you don't actually have." },
+      { id: "minimal", label: "Constraints (minimal change, don't refactor)", test: /(minimal|only (change|touch|edit)|don'?t (change|refactor|touch|rewrite)|small change|one file|without (changing|breaking))/i, problem: "No constraints: the AI refactored 14 files and broke the login screen." },
+      { id: "tests", label: "A regression test", test: /(test|regression|verify|explain|diff)/i, problem: "No test was requested, so the same bug came back two weeks later." },
+    ],
+  },
+  {
+    id: "pay",
+    title: "Feature: take payments for a Pro plan",
+    scenario: "Add a $5/month Pro plan with Stripe. Your stack is Next.js API routes and Postgres. Write the prompt that gets the AI to build payments you can trust.",
+    checks: [
+      { id: "stack", label: "Your stack (framework, language, database)", test: /(next|react|typescript|postgres|node|stack|framework|database|api route)/i, problem: "No stack given: the AI wrote an Express server you don't run, so none of it plugs in." },
+      { id: "reqs", label: "Clear requirements (plan, price, what Pro unlocks)", test: /(must|should|requirement|\$5|5 ?(usd|dollars)|monthly|pro plan|unlock|\n\s*(-|\*|\d[.)]))/i, problem: "Requirements were fuzzy, so it built one-time payments instead of a monthly subscription." },
+      { id: "security", label: "Secrets handling (env vars, server-side only, webhook signature)", test: /(env|environment variable|secret|never (hard-?code|expose|commit)|webhook signature|server[- ]side)/i, problem: "The AI pasted your Stripe secret key into frontend code. Bots found it and drained the account." },
+      { id: "edge", label: "Edge cases (declined card, refund, duplicate webhook)", test: /(declin|fail|refund|duplicate|idempotent|retry|cancel|webhook)/i, problem: "No failure cases: customers were charged twice, and declined payments still unlocked Pro." },
+      { id: "tests", label: "Testing in sandbox / test mode", test: /(test|sandbox|test mode|verify|explain)/i, problem: "Nothing said to use test mode, so the first 'test' ran on a real credit card." },
+    ],
+  },
+];
+
+export interface PromptResult {
+  score: number;
+  hits: PromptCheck[];
+  misses: PromptCheck[];
+  vague: boolean;
+}
+
+export function evaluatePrompt(task: PromptTask, raw: string): PromptResult {
+  const text = raw.trim();
+  const hits = task.checks.filter((c) => c.test.test(text));
+  const misses = task.checks.filter((c) => !c.test.test(text));
+  const vague = text.length < 40;
+  let score = hits.length / task.checks.length;
+  if (text.length < 120) score = Math.min(score, 0.75); // a one-liner can't be a great prompt
+  if (vague) score = Math.min(score, 0.15);
+  return { score, hits, misses, vague };
+}

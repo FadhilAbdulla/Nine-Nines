@@ -12,6 +12,7 @@ import TreeModal from "./TreeModal";
 import { useUI } from "@/store/useUI";
 import { EndScreen, StartScreen, Toast } from "./Overlays";
 import Dialogue from "./Dialogue";
+import GoOut from "./GoOut";
 import Hud from "./Hud";
 import HandsOn from "./HandsOn";
 import Scene from "./Scene";
@@ -74,6 +75,7 @@ function Playing() {
       <PersonCard />
       <TreeModal />
       <HandsOn />
+      <GoOut />
       <Dialogue />
       <EndScreen />
       <Toast />
@@ -101,6 +103,7 @@ function nextHint(g: GameState): string | null {
     return `Prototype ${Math.round((prod.progress / prod.cost) * 100)}% done. You're coding all night. Press 3 for 8× speed.`;
   }
   const building = g.products.find((p) => p.status === "building");
+  if (g.flags.aiSolo && building && !g.team.some((e) => e.role === "dev")) return "Solo with AI: keep coding at the Engineering desk. Afterwards you also deploy, market and support the app yourself, so hire help when you can.";
   if (!d.hasEngineer && building) return "Your prototype is stuck at 60%. At the Engineering desk, code it yourself by hand or hire an Application Engineer.";
   if (g.products.some((p) => p.status === "built") && !d.hasOps) return "The app is built but not hosted. Walk to the DevOps desk: deploy it yourself or hire a DevOps Engineer.";
   if (g.products.some((p) => p.status === "built")) return "Walk to the DevOps desk and deploy your app.";

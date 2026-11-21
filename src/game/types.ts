@@ -118,5 +118,6 @@ export interface GameState {
   ended: null | "ipo" | "bankrupt";
   peakUsers: number;
   supportBoost?: { until: number; mult: number };
+  refreshUntil?: number; // 'Refreshed' buff after a park coffee or a proper rest
   seq: number;
 }

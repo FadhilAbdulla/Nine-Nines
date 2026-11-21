@@ -1,12 +1,12 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { CAMPAIGNS } from "@/game/data";
-import { codeHandsOn, deployMyself, designHandsOn, marketHandsOn, supportHandsOn } from "@/game/engine";
-import { CODE_QUIZ, DEPLOY_HINTS, DEPLOY_STEPS, DESIGN_QUIZ, marketSteps, pickN, shuffle, SUPPORT_TICKETS, type Quiz } from "@/game/tasks";
+import { aiCodeHandsOn, codeHandsOn, deployMyself, designHandsOn, marketHandsOn, supportHandsOn } from "@/game/engine";
+import { CODE_QUIZ, DEPLOY_HINTS, evaluatePrompt, PROMPT_TASKS, type PromptResult, DEPLOY_STEPS, DESIGN_QUIZ, marketSteps, pickN, shuffle, SUPPORT_TICKETS, type Quiz } from "@/game/tasks";
 import { useUI } from "@/store/useUI";
 import { useAct, useG } from "./ui";
 
-type Result = { score: number; mistakes?: number };
+type Result = { score: number; mistakes?: number; problems?: string[] };
 
 function Frame({ title, subtitle, emoji, onCancel, children }: { title: string; subtitle: string; emoji: string; onCancel: () => void; children: React.ReactNode }) {
   useEffect(() => {
@@ -87,6 +87,44 @@ function Quiz({ questions: raw, onDone, ticket }: { questions: (Quiz & { from?: 
       <div className="row end">
         <button className="btn primary" disabled={!answered} onClick={next}>{i + 1 >= questions.length ? "Finish" : "Next"} ▸ <kbd>Enter</kbd></button>
       </div>
+    </div>
+  );
+}
+
+/* ---------- coding with AI: write the prompt ---------- */
+function AiPromptTask({ onDone }: { onDone: (r: Result) => void }) {
+  const task = useMemo(() => PROMPT_TASKS[Math.floor(Math.random() * PROMPT_TASKS.length)], []);
+  const [text, setText] = useState("");
+  const [hint, setHint] = useState(false);
+  const [out, setOut] = useState<PromptResult | null>(null);
+  const [tries, setTries] = useState(0);
+  const send = () => { setOut(evaluatePrompt(task, text)); setTries((n) => n + 1); };
+  const final = out ? Math.max(0, out.score - 0.1 * (tries - 1)) : 0;
+  return (
+    <div className="quiz">
+      <div className="ai-scenario">
+        <b>{task.title}</b>
+        <p>{task.scenario}</p>
+        <button className="btn sm" onClick={() => setHint((h) => !h)}>{hint ? "Hide" : "Show"} what pros put in a prompt</button>
+        {hint && <ul className="goals ai-hint">{task.checks.map((c) => <li key={c.id}>• {c.label}</li>)}</ul>}
+      </div>
+      <label className="label" htmlFor="ai-prompt">Your prompt to the AI</label>
+      <textarea id="ai-prompt" className="ai-text" rows={out ? 3 : 7} value={text} disabled={!!out} onChange={(e) => setText(e.target.value)} placeholder="Describe the task the way you'd brief a new teammate who can't ask follow-up questions…" />
+      {!out && <div className="row end"><span className="dim small">{text.trim().length} characters</span><button className="btn primary" disabled={!text.trim()} onClick={send}>Send to AI ▸</button></div>}
+      {out && (
+        <div className="ai-out">
+          <pre className="terminal">{`🤖 AI: Done! Generated ${60 + Math.round(out.score * 40) + out.misses.length * 14} lines across ${2 + out.misses.length} files.${out.vague ? "\n   (Your prompt was so short the AI invented the entire spec.)" : ""}`}</pre>
+          <ul className="ai-list">
+            {out.hits.map((c) => <li key={c.id} className="ok">✔ Covered: {c.label}</li>)}
+            {out.misses.map((c) => <li key={c.id} className="bad"><b>✖ {c.label}</b><span>{c.problem}</span></li>)}
+          </ul>
+          <div className="q-explain ok"><b>Prompt strength: {Math.round(out.score * 100)}%</b>{tries > 1 ? ` · ${tries - 1} re-roll${tries > 2 ? "s" : ""}, −${(tries - 1) * 10}% for the time you burned` : ""}. Good prompts name the context, the exact requirements, the risks and how to verify the result. AI is only as good as the brief you give it.</div>
+          <div className="row end">
+            <button className="btn" onClick={() => setOut(null)}>Revise my prompt (−10%)</button>
+            <button className="btn primary" onClick={() => onDone({ score: final, problems: out.misses.map((c) => c.problem) })}>Ship this code ▸</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -203,6 +241,11 @@ export default function HandsOn() {
     if (kind === "code") {
       act((s) => codeHandsOn(s, r.score));
       lines.push(`+${(6 + 14 * r.score).toFixed(0)} dev points on ${focus?.name ?? "your product"}`, "Next hands-on coding session in 2 days");
+    } else if (kind === "aicode") {
+      const n = r.problems?.length ?? 0;
+      act((s) => aiCodeHandsOn(s, r.score, n));
+      lines.push(`+${(4 + 16 * r.score).toFixed(0)} dev points on ${focus?.name ?? "your product"}`, n ? `${n} problem(s) slipped in: bugs added to ${focus?.name ?? "your product"}` : "Clean, reviewed code");
+      for (const p of r.problems ?? []) lines.push(`⚠ ${p}`);
     } else if (kind === "design") {
       act((s) => designHandsOn(s, r.score));
       lines.push(`Design quality boosted on ${focus?.name ?? "your product"}`, "Next hands-on design session in 3 days");
@@ -221,6 +264,7 @@ export default function HandsOn() {
 
   const titles: Record<string, [string, string, string]> = {
     code: ["Code a feature", `Fix the details yourself on ${focus?.name ?? "your product"}. Clean code means more progress.`, "⌨️"],
+    aicode: ["Code with AI", `Brief the AI on ${focus?.name ?? "your product"}. Vague prompts ship bugs. You still run marketing, deploys and support yourself.`, "🤖"],
     design: ["Design the UX", `Make the usability calls for ${focus?.name ?? "your product"}.`, "🎨"],
     support: ["Answer customer tickets", "Write the replies yourself. Good replies calm customers and lift your reputation.", "🎧"],
     deploy: ["Deploy it yourself", `Take ${target?.name ?? "the app"} live with no DevOps team. Mistakes cause bugs.`, "☁️"],
@@ -234,6 +278,8 @@ export default function HandsOn() {
         <ResultView score={res.score} lines={res.lines} onClose={close} />
       ) : h.kind === "code" ? (
         <Quiz questions={code} onDone={(r) => finish("code", r)} />
+      ) : h.kind === "aicode" ? (
+        <AiPromptTask onDone={(r) => finish("aicode", r)} />
       ) : h.kind === "design" ? (
         <Quiz questions={design} onDone={(r) => finish("design", r)} />
       ) : h.kind === "support" ? (

@@ -1,13 +1,18 @@
 "use client";
 import { create } from "zustand";
 import type { StationId } from "@/game/types";
+import type { Place } from "@/game/layout";
 
 interface UI {
   at: StationId | null; // station the founder is standing at
   dash: StationId | null; // open dashboard
   talk: string | null; // employee card
   tree: boolean;
-  hands: null | { kind: "code" | "deploy" | "design" | "market" | "support"; defId?: string; productId?: string };
+  place: Place; // where the founder currently is
+  goOut: boolean; // 'Where to?' menu at the office door
+  setPlace: (p: Place) => void;
+  setGoOut: (b: boolean) => void;
+  hands: null | { kind: "code" | "aicode" | "deploy" | "design" | "market" | "support"; defId?: string; productId?: string };
   openHands: (h: NonNullable<UI["hands"]>) => void;
   closeHands: () => void;
   setAt: (s: StationId | null) => void;
@@ -22,6 +27,10 @@ export const useUI = create<UI>((set) => ({
   dash: null,
   talk: null,
   tree: false,
+  place: "office",
+  goOut: false,
+  setPlace: (place) => set({ place, goOut: false }),
+  setGoOut: (goOut) => set({ goOut }),
   hands: null,
   openHands: (hands) => set({ hands }),
   closeHands: () => set({ hands: null }),

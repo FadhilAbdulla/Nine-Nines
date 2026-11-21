@@ -65,6 +65,7 @@ export function derive(s: GameState) {
   }
   if (s.flags.cultureShip) fx.dev += 0.1;
   if (s.flags.cultureCalm) fx.morale += 3;
+  if ((s.refreshUntil ?? 0) >= s.day) { fx.dev += 0.1; fx.design += 0.06; fx.mkt += 0.06; }
   fx.server = Math.min(0.7, fx.server);
   fx.bugs = Math.min(0.7, fx.bugs);
 
@@ -105,7 +106,7 @@ export function derive(s: GameState) {
   const living = 14;
   const burn = salaries + rent + subs + servers + living;
 
-  return { capacity, load, hasEngineer: by("dev").length > 0, hasOps: by("devops").length > 0, fx, managers, reports, mgmtCap, overload, prodMult, devPts, designPts, mktPower, supportCap, tickets, coverage, revenue, salaries, rent, subs, servers, living, burn, users };
+  return { capacity, load, hasEngineer: by("dev").length > 0 || !!s.flags.aiSolo, hasOps: by("devops").length > 0, fx, managers, reports, mgmtCap, overload, prodMult, devPts, designPts, mktPower, supportCap, tickets, coverage, revenue, salaries, rent, subs, servers, living, burn, users };
 }
 
 // ---------- the daily tick ----------
@@ -372,6 +373,31 @@ export function handsOnCooldown(s: GameState, kind: string): number {
   return Math.max(0, (s.cooldowns[`hands:${kind}`] ?? 0) - s.day);
 }
 
+/** Coding with an AI assistant: faster than by hand, but a weak prompt ships bugs. */
+export function aiCodeHandsOn(s: GameState, score: number, problems: number): string | null {
+  const p = s.products.find((x) => x.id === s.focusId);
+  if (!p) return "Pick a product to focus on first.";
+  const d = derive(s);
+  const pts = (4 + 16 * score) * (1 + d.fx.dev);
+  s.cooldowns["hands:code"] = s.day + 2;
+  if (p.status === "building") {
+    p.progress = Math.min(p.cost, p.progress + pts);
+    if (p.progress >= p.cost) {
+      p.status = "built";
+      log(s, `🛠️ ${p.name} is built. It still needs to be hosted.`, "story");
+    }
+  } else if (p.status === "live") {
+    p.updatePts += pts;
+  } else return "That product is already built.";
+  p.bugs = clamp(p.bugs + (1 - score) * 18, 0, 100);
+  log(s, `You coded with an AI assistant (prompt ${Math.round(score * 100)}% strong): +${pts.toFixed(0)} dev points on ${p.name}. ${problems ? `${problems} problem(s) from the weak prompt slipped into the code.` : "Clean, reviewed code."}`, problems <= 1 ? "good" : "info");
+  if (score < 0.35) {
+    s.rep = clamp(s.rep - 0.5, 0, 100);
+    log(s, "Sloppy AI-generated code reached users and someone posted a screenshot of the bug.", "bad");
+  }
+  return null;
+}
+
 export function codeHandsOn(s: GameState, score: number): string | null {
   const p = s.products.find((x) => x.id === s.focusId);
   if (!p) return "Pick a product to focus on first.";
@@ -534,7 +560,9 @@ export function refreshCandidatesPaid(s: GameState): string | null {
 }
 
 // scene interactions
-export function sceneAction(s: GameState, key: "coffee" | "whiteboard" | "door"): string | null {
+const refresh = (s: GameState, days: number) => { s.refreshUntil = Math.max(s.refreshUntil ?? 0, s.day + days); };
+
+export function sceneAction(s: GameState, key: "coffee" | "whiteboard" | "door" | "bed" | "cart" | "bench"): string | null {
   if ((s.cooldowns[key] ?? 0) > s.day) return "Not right now. Try again in a few days.";
   const d = derive(s);
   if (key === "coffee") {
@@ -549,6 +577,21 @@ export function sceneAction(s: GameState, key: "coffee" | "whiteboard" | "door")
     if (p.status === "building") p.progress += burst;
     else p.updatePts += burst;
     log(s, `Whiteboard session. ${p.name} jumps ahead.`, "good");
+  } else if (key === "cart") {
+    if (s.cash < 5) return "A coffee costs $5.";
+    s.cash -= 5;
+    s.cooldowns[key] = s.day + 2;
+    refresh(s, 4);
+    log(s, "A flat white in the sun. You feel Refreshed: the whole company works a little faster.", "good");
+  } else if (key === "bench") {
+    s.cooldowns[key] = s.day + 3;
+    refresh(s, 3);
+    log(s, "You sat on a bench and watched ducks for ten minutes. Refreshed.", "good");
+  } else if (key === "bed") {
+    s.cooldowns[key] = s.day + 5;
+    refresh(s, 6);
+    for (const e of s.team) e.morale = clamp(e.morale + 2, 0, 100);
+    log(s, "You went home and slept properly for once. Refreshed, with fresh ideas.", "good");
   } else {
     if (s.cash < 100) return "Not enough cash for the networking event ($100).";
     s.cash -= 100;
