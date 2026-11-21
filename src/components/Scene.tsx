@@ -160,6 +160,13 @@ export default function Scene() {
         const d = dist(x, y, p.x, p.y, p.w, p.h);
         if (d < bd) { bd = d; best = { kind: "prop", key: p.key, label: p.label }; }
       }
+      // close the open dashboard as soon as you step away from its desk
+      const openId = useUI.getState().dash;
+      if (openId) {
+        const st = L.stations.find((s0) => s0.id === openId);
+        const away = !st || dist(x, y, st.x * TILE, st.y * TILE + TILE * 0.96, TILE * 1.8, TILE * 1.02) > 30;
+        if (away) useUI.getState().closeDash();
+      }
       const sig = best ? `${best.kind}:${"id" in best ? best.id : best.key}` : "";
       if (sig !== lastNear) { lastNear = sig; setNear(best); }
       raf = requestAnimationFrame(loop);
