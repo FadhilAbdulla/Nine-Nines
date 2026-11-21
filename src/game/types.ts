@@ -122,6 +122,9 @@ export interface GameState {
   ended: null | "ipo" | "bankrupt";
   peakUsers: number;
   supportBoost?: { until: number; mult: number };
+  userHistory?: number[]; // total users, last 30 days
+  loadHistory?: number[]; // server load %, last 30 days
+  todos?: { id: string; text: string; done: boolean }[]; // your own to-do list
   refreshUntil?: number; // 'Refreshed' buff after a park coffee or a proper rest
   partnerVitals?: Vitals;
   seq: number;

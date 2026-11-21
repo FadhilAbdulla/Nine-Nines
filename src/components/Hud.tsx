@@ -11,6 +11,7 @@ export default function Hud() {
   const speed = useGame((s) => s.speed);
   const setSpeed = useGame((s) => s.setSpeed);
   const setTree = useUI((u) => u.setTree);
+  const openLaptop = useUI((u) => u.openLaptop);
   const [journal, setJournal] = useState(false);
   const d = derive(g);
   const net = d.revenue - d.burn;
@@ -33,6 +34,7 @@ export default function Hud() {
       <div className="hud-left">
         <b className="hud-co">{g.company || "Untitled project"}</b>
         <span className="dim small">{dateLabel(g.day)}</span>
+        <button className="btn sm laptop-btn" onClick={() => openLaptop()} title="Open your laptop (L)">💻 My laptop <kbd>L</kbd></button>
       </div>
 
       <div className={`hud-cash ${flash ?? ""} ${g.cash < 0 ? "neg" : ""}`} title="Company cash">

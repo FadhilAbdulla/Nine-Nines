@@ -48,6 +48,7 @@ export const TOOLS: ToolDef[] = [
   { id: "ide", dept: "eng", name: "Pro IDE licenses", emoji: "⌨️", desc: "Autocomplete that actually completes.", cost: 300, monthly: 40, fx: { dev: 0.1 } },
   { id: "git", dept: "eng", name: "Git + CI pipeline", emoji: "🔁", desc: "Tests run themselves. Fewer 3am surprises.", cost: 600, monthly: 30, fx: { bugs: 0.25 } },
   { id: "ml", dept: "eng", name: "Experimentation platform", emoji: "🧪", desc: "A/B test everything. Dev and marketing +12%.", cost: 40_000, monthly: 2_000, minOffice: 3, fx: { dev: 0.12, mkt: 0.12 } },
+  { id: "monitoring", dept: "ops", name: "Monitoring & observability", emoji: "📡", desc: "Integrates your servers with your laptop: live load, capacity and uptime dashboards. Also catches bugs earlier.", cost: 800, monthly: 60, fx: { bugs: 0.05 } },
   { id: "cloud", dept: "ops", name: "Managed cloud hosting", emoji: "☁️", desc: "Doubles server capacity, 40% cheaper per user.", cost: 4_000, monthly: 300, fx: { server: 0.4, capacity: 1 } },
   { id: "cdn", dept: "ops", name: "CDN & caching layer", emoji: "🌐", desc: "Pages load instantly. Doubles capacity again.", cost: 9_000, monthly: 500, minOffice: 1, fx: { capacity: 1 } },
   { id: "k8s", dept: "ops", name: "Container platform", emoji: "🧱", desc: "Auto-scaling clusters. Capacity ×5.", cost: 40_000, monthly: 2_500, minOffice: 2, fx: { capacity: 4 } },
