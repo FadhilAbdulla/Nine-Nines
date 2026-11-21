@@ -365,7 +365,7 @@ export default function Scene() {
             {inOffice && (
               <div className="prop door" style={{ left: (L.cols - 2) * TILE, top: -ext.top + wallH - TILE * 1.5, width: TILE * 1.6, height: TILE * 1.5 }}>
                 <GlassDoor />
-                <small>Go out</small>
+                <small>Go out · park · home · meetup</small>
               </div>
             )}
             {inOffice && <div className="sign" style={{ left: TILE, top: 12 }}><i />{g.company}</div>}
