@@ -10,7 +10,7 @@ import { useG } from "./ui";
 export function StartScreen() {
   const newGame = useGame((s) => s.newGame);
   const [founder, setFounder] = useState("");
-  const [look, setLook] = useState<Look>({ skin: 1, hair: 0, hairColor: 1, shirt: 0 });
+  const [look, setLook] = useState<Look>({ skin: 0, hair: 0, hairColor: 0, shirt: 0 });
   return (
     <main className="start">
       <div className="start-card">
