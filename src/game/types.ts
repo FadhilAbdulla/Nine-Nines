@@ -74,6 +74,7 @@ export interface GameEvent {
   weight?: number; // random events only
   once?: boolean;
   input?: { label: string; placeholder: string };
+  speaker?: "partner";
   choices: EventChoice[];
 }
 

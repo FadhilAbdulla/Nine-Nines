@@ -41,7 +41,7 @@ export default function Scene() {
   const props = useMemo(() => {
     const list: { key: "coffee" | "whiteboard" | "door"; label: string; x: number; y: number; w: number; h: number }[] = [];
     if (!L.home) {
-      list.push({ key: "door", label: "Go out to a networking meetup ($100)", x: (L.cols - 2) * TILE, y: 0, w: TILE * 1.6, h: TILE * 1.5 });
+      list.push({ key: "door", label: "Go out networking ($100)", x: (L.cols - 2) * TILE, y: 0, w: TILE * 1.6, h: TILE * 1.5 });
       const bottom = L.rows - 1.2;
       for (const d of DECOR) {
         if (!g.decor.includes(d.id) || (d.id !== "coffee" && d.id !== "whiteboard")) continue;
@@ -69,8 +69,9 @@ export default function Scene() {
   };
 
   // live copies for the animation loop
-  const live = useRef({ solids, props, L, g, W, H, frozen: false });
-  live.current = { solids, props, L, g, W, H, frozen: !!g.event };
+  const live = useRef({ solids, props, L, g, W, H, frozen: false, scale: 1 });
+  const scalerRef = useRef<HTMLDivElement>(null);
+  const camRef = useRef({ x: 0, y: 0, init: false });
 
   const shape = `${g.founded}-${g.officeLevel}`;
   useEffect(() => {
@@ -122,6 +123,20 @@ export default function Scene() {
         if (dx !== 0 && dx !== lastFace) { lastFace = dx; setFacing(dx); }
       }
       if (isMoving !== wasMoving) { wasMoving = isMoving; setMoving(isMoving); }
+      const stage = stageRef.current;
+      const sc = scalerRef.current;
+      if (stage && sc) {
+        const s = live.current.scale;
+        const vw = stage.clientWidth;
+        const availH = stage.clientHeight - 64 - 70;
+        const rw = W * s;
+        const rh = H * s;
+        const tx = rw <= vw ? (vw - rw) / 2 : -Math.max(0, Math.min(rw - vw, pos.current.x * s - vw / 2));
+        const ty = rh <= availH ? 64 + (availH - rh) / 2 : 64 - Math.max(0, Math.min(rh - availH, pos.current.y * s - availH / 2));
+        const cam = camRef.current;
+        if (!cam.init) { cam.x = tx; cam.y = ty; cam.init = true; } else { cam.x += (tx - cam.x) * Math.min(1, dt * 7); cam.y += (ty - cam.y) * Math.min(1, dt * 7); }
+        sc.style.transform = `translate(${cam.x.toFixed(1)}px, ${cam.y.toFixed(1)}px)`;
+      }
       const el = foundRef.current;
       if (el) el.style.transform = `translate(${pos.current.x - 26}px, ${pos.current.y - 60}px)`;
 
@@ -179,7 +194,7 @@ export default function Scene() {
   interactRef.current = interact;
 
   // partner walks in during the founding scene
-  const partnerVisiting = !g.founded && g.event?.id === "partner_offer";
+  const partnerVisiting = !g.founded && (g.event?.id === "partner_offer" || g.event?.id === "intro");
   const [partnerIn, setPartnerIn] = useState(false);
   useEffect(() => {
     if (!partnerVisiting) { setPartnerIn(false); return; }
@@ -195,6 +210,29 @@ export default function Scene() {
   }, [partnerIn]);
 
   const press = (k: "u" | "d" | "l" | "r", on: boolean) => { keys.current[k] = on; };
+
+  // game camera: fixed zoom that follows you; small rooms are centred
+  live.current = { solids, props, L, g, W, H, frozen: !!g.event, scale: 1 };
+  const stageRef = useRef<HTMLElement>(null);
+  const [scale, setScale] = useState(1);
+  live.current.scale = scale;
+  useEffect(() => {
+    const fit = () => {
+      const el = stageRef.current;
+      if (!el) return;
+      const vw = el.clientWidth;
+      const vh = el.clientHeight;
+      const target = Math.max(0.9, Math.min(1.5, vh / 640));
+      const fitS = Math.min((vw - 24) / W, (vh - 150) / H);
+      setScale(fitS >= target ? Math.min(fitS, 1.9) : target);
+    };
+    fit();
+    camRef.current.init = false;
+    const ro = new ResizeObserver(fit);
+    if (stageRef.current) ro.observe(stageRef.current);
+    window.addEventListener("resize", fit);
+    return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
+  }, [W, H]);
   const title = L.home ? "Your bedroom" : office.name;
   const blurb = L.home ? "A bed, a desk, a laptop and a dream." : office.blurb;
   const bottom = L.rows - 1.2;
@@ -202,13 +240,13 @@ export default function Scene() {
   const showPrompt = !!near && !(near.kind === "station" && dash === near.id);
 
   return (
-    <section className="panel scene-panel" aria-label="Office">
-      <div className="panel-head">
-        <h2>{L.home ? "🛏️" : office.emoji} {title}</h2>
-        <span className="dim small">{blurb}</span>
+    <section className="stage" ref={stageRef} aria-label="Office">
+      <div className="room-label">
+        <b>{L.home ? "🛏️" : office.emoji} {title}</b>
+        <span>{blurb}</span>
       </div>
-      <div className="scene-scroll">
-        <div className={`office ${L.home ? "home" : `lvl${g.officeLevel}`}`} style={{ width: W, height: H }}>
+      <div className="scaler" ref={scalerRef} style={{ width: W * scale, height: H * scale }}>
+        <div className={`office ${L.home ? "home" : `lvl${g.officeLevel}`}`} style={{ width: W, height: H, transform: `scale(${scale})`, transformOrigin: "top left", ["--s" as string]: scale } as React.CSSProperties}>
           {!L.home && (
             <div className="prop door" style={{ left: (L.cols - 2) * TILE, top: 0, width: TILE * 1.6, height: TILE * 1.5 }}>
               <span>🚪</span>
@@ -218,9 +256,9 @@ export default function Scene() {
           {!L.home && <div className="sign" style={{ left: TILE, top: 8 }}>{g.company}</div>}
           {L.home && (
             <>
-              <span className="prop decor still" style={{ left: 4.6 * TILE, top: 2 * TILE, fontSize: 44 }}>🛏️</span>
-              <span className="prop decor still" style={{ left: 1.2 * TILE, top: 0.3 * TILE, fontSize: 36 }}>🪟</span>
-              <span className="prop decor still" style={{ left: 5.6 * TILE, top: 0.3 * TILE, fontSize: 30 }}>🌙</span>
+              <span className="prop decor still" style={{ left: 6.2 * TILE, top: 2.4 * TILE, fontSize: 52 }}>🛏️</span>
+              <span className="prop decor still" style={{ left: 2.6 * TILE, top: 0.3 * TILE, fontSize: 40 }}>🪟</span>
+              <span className="prop decor still" style={{ left: 7.2 * TILE, top: 0.3 * TILE, fontSize: 32 }}>🌙</span>
             </>
           )}
 
@@ -277,7 +315,7 @@ export default function Scene() {
             })}
 
           {partnerVisiting && (
-            <div className="walker" style={{ transform: partnerIn ? `translate(${3.1 * TILE}px, ${3.6 * TILE}px)` : `translate(${6 * TILE}px, ${5 * TILE}px)` }}>
+            <div className="walker" style={{ transform: partnerIn ? `translate(${4.3 * TILE}px, ${3.6 * TILE}px)` : `translate(${8 * TILE}px, ${5.5 * TILE}px)` }}>
               <Avatar look={PARTNER_LOOK} role="partner" size={40} legs walking={partnerWalking} flip />
               <span className="nm">{PARTNER.first}</span>
             </div>

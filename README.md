@@ -14,10 +14,10 @@ npm run build && npm start
 
 ## How the game works
 
-It's a story told in a world you walk around in.
+It's a story told in a full-screen world you walk around in. The camera follows your avatar, your cash is always at the top, and story beats play out as conversations: press **Enter** (or click Next) to advance, and pick a reply when choices appear.
 
 1. **The bedroom.** You create an avatar and start coding a prototype of *Pocket Todo* at your laptop.
-2. **The partner.** When the prototype is about 40% done, your friend Maya walks in and asks: *"Can we create a company?"* Say yes, name the company, and she invests $20,000 for 25%. You move into the garage.
+2. **The partner.** Maya walks in on night one and chats with you. When the prototype is about 40% done she returns and asks: *"Can we create a company?"* Say yes, name the company, and she invests $20,000 for 25%. You move into the garage.
 3. **The first hires.** Alone, you can only get a prototype to 60%. Walk to Maya's desk and hire an **Application Engineer** to finish it. Then hire a **DevOps Engineer**, go to the DevOps desk, and **host** it. Now you launch.
 4. **Grow.** Marketing campaigns bring users. Servers have a capacity, so DevOps and infrastructure tools keep up with traffic. Support, design, managers, new products, funding rounds, bigger offices, and finally an IPO.
 
