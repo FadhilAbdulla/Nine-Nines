@@ -318,16 +318,10 @@ export default function Scene() {
     if (!overlapsSign && !overlapsDoor) windows.push(cx);
   }
   const homeWindows = [ext.x + 2.4 * TILE];
-  // department floor zones
-  const rowsY = Array.from(new Set(L.stations.map((st) => st.y))).sort((p, q) => p - q);
-  const zoneEnd = (L.remote.length ? L.remote[0].y - 0.7 : L.rows - 1.5);
-  const zones = rowsY.map((y, i) => {
-    const sts = L.stations.filter((st) => st.y === y);
-    const id = sts[0].id;
-    const color = ZONE_COLOR[id] ?? SHIRTS[ROLE_SHIRT[STATION_INFO[id].role!]];
-    const label = sts.length > 1 ? "Management" : STATION_INFO[id].label;
-    const next = i + 1 < rowsY.length ? rowsY[i + 1] : zoneEnd;
-    return { y, h: Math.max(2.4, next - y - 0.1), color, label };
+  // department floor zones (come from the layout)
+  const zones = L.zones.map((z) => {
+    const color = z.id === "mgmt" ? ZONE_COLOR.you : SHIRTS[ROLE_SHIRT[STATION_INFO[z.id].role!]];
+    return { ...z, color };
   });
   const sideItems: { left: boolean; y: number; dx: number; w: number; h: number; node: React.ReactNode }[] = [];
   if (inOffice) {
@@ -364,8 +358,8 @@ export default function Scene() {
 
           <div className="content" style={{ left: ext.x, top: ext.top, width: W, height: H }}>
             {inOffice && zones.map((z) => (
-              <div key={z.y} className="zone" style={{ left: -ext.x + 10, top: z.y * TILE - 6, width: W + ext.x * 2 - 20, height: z.h * TILE, ["--zc" as string]: z.color } as React.CSSProperties}>
-                <span style={{ left: ext.x + 0.45 * TILE }}>{z.label}</span>
+              <div key={z.id} className="zone" style={{ left: z.full ? -ext.x + 10 : z.x, top: z.y, width: z.full ? Wt - 20 : z.w, height: z.h, ["--zc" as string]: z.color } as React.CSSProperties}>
+                <span style={{ left: z.full ? ext.x + 0.45 * TILE : 12 }}>{z.label}</span>
               </div>
             ))}
             {inOffice && (
