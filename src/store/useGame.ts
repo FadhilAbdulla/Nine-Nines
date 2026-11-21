@@ -3,18 +3,18 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import * as E from "@/game/engine";
 import { getEvent } from "@/game/events";
-import type { FounderFocus, GameState } from "@/game/types";
+import type { FounderFocus, GameState, Look } from "@/game/types";
 
 interface Store {
   game: GameState | null;
   speed: number; // 0 = paused
   toast: string | null;
-  newGame: (company: string, founder: string) => void;
+  newGame: (founder: string, look: Look) => void;
   reset: () => void;
   setSpeed: (n: number) => void;
   tick: () => void;
   act: (fn: (s: GameState) => string | null | void) => void;
-  chooseEvent: (idx: number) => void;
+  chooseEvent: (idx: number, text?: string) => void;
   closeEvent: () => void;
   setFocusMode: (f: FounderFocus) => void;
   dismissToast: () => void;
@@ -28,7 +28,7 @@ export const useGame = create<Store>()(
       game: null,
       speed: 1,
       toast: null,
-      newGame: (company, founder) => set({ game: E.newGame(company, founder), speed: 1, toast: null }),
+      newGame: (founder, look) => set({ game: E.newGame(founder, look), speed: 1, toast: null }),
       reset: () => set({ game: null, speed: 1, toast: null }),
       setSpeed: (n) => set({ speed: n }),
       tick: () => {
@@ -45,14 +45,14 @@ export const useGame = create<Store>()(
         const err = fn(n);
         set({ game: n, toast: typeof err === "string" ? err : null });
       },
-      chooseEvent: (idx) => {
+      chooseEvent: (idx, text) => {
         const g = get().game;
         if (!g || !g.event || g.event.result) return;
         const ev = getEvent(g.event.id);
         const choice = ev?.choices[idx];
         if (!ev || !choice || choice.disabled?.(g)) return;
         const n = clone(g);
-        const res = choice.apply(n);
+        const res = choice.apply(n, text);
         n.event = { id: ev.id, result: res || "Done." };
         set({ game: n });
       },

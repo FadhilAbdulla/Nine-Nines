@@ -1,4 +1,6 @@
-export type Role = "dev" | "designer" | "marketer" | "support" | "manager";
+export type Role = "dev" | "devops" | "designer" | "marketer" | "support" | "manager";
+export type StationId = "you" | "partner" | "eng" | "ops" | "design" | "mkt" | "support";
+export interface Look { skin: number; hair: number; hairColor: number; shirt: number }
 export type FounderFocus = "code" | "market" | "support" | "manage";
 export type Background = "engineer" | "marketer" | "heir";
 
@@ -12,6 +14,7 @@ export interface Employee {
   hiredDay: number;
   trait: string;
   lowDays: number; // consecutive days of very low morale
+  remote?: boolean;
 }
 
 export interface Candidate {
@@ -27,7 +30,8 @@ export interface Product {
   id: string;
   ideaId: string;
   name: string;
-  status: "building" | "live";
+  status: "building" | "built" | "deploying" | "live";
+  deployLeft: number;
   progress: number;
   designProgress: number;
   cost: number;
@@ -57,7 +61,7 @@ export interface EventChoice {
   label: string;
   hint?: string;
   disabled?: (s: GameState) => string | null; // returns reason if unavailable
-  apply: (s: GameState) => string | void;
+  apply: (s: GameState, text?: string) => string | void;
 }
 
 export interface GameEvent {
@@ -69,6 +73,7 @@ export interface GameEvent {
   cond: (s: GameState) => boolean;
   weight?: number; // random events only
   once?: boolean;
+  input?: { label: string; placeholder: string };
   choices: EventChoice[];
 }
 
@@ -79,6 +84,9 @@ export interface ActiveEvent {
 
 export interface GameState {
   started: boolean;
+  founded: boolean;
+  partnerVisit: boolean;
+  look: Look;
   company: string;
   founder: string;
   background: Background;

@@ -1,0 +1,73 @@
+import { OFFICES } from "./data";
+import type { Employee, GameState, Role, StationId } from "./types";
+
+export const TILE = 52;
+
+export interface PlacedStation { id: StationId; label: string; emoji: string; x: number; y: number }
+export interface PlacedDesk { x: number; y: number; emp: Employee }
+export interface Layout { cols: number; rows: number; home: boolean; stations: PlacedStation[]; desks: PlacedDesk[]; remote: PlacedDesk[] }
+
+export const STATION_INFO: Record<StationId, { label: string; emoji: string; role?: Role }> = {
+  you: { label: "Director desk", emoji: "💻" },
+  partner: { label: "Partner desk", emoji: "🗂️" },
+  eng: { label: "Engineering", emoji: "⌨️", role: "dev" },
+  ops: { label: "DevOps", emoji: "☁️", role: "devops" },
+  design: { label: "Design", emoji: "🎨", role: "designer" },
+  mkt: { label: "Marketing", emoji: "📣", role: "marketer" },
+  support: { label: "Support", emoji: "🎧", role: "support" },
+};
+
+export function stationUnlocked(s: GameState, id: StationId): boolean {
+  const staff = (r: Role) => s.team.some((e) => e.role === r);
+  const anyProduct = s.products.length > 0;
+  const live = s.products.some((p) => p.status === "live");
+  const users = s.products.reduce((a, p) => a + (p.status === "live" ? p.users : 0), 0);
+  switch (id) {
+    case "you": return true;
+    case "partner": return s.founded;
+    case "eng": return s.founded && anyProduct;
+    case "ops": return s.founded && (staff("devops") || s.products.some((p) => p.status !== "building"));
+    case "design": return s.founded && (staff("designer") || s.tools.includes("design") || users >= 500);
+    case "mkt": return s.founded && (live || staff("marketer"));
+    case "support": return s.founded && (staff("support") || users >= 300);
+  }
+}
+
+export function computeLayout(s: GameState): Layout {
+  if (!s.founded) {
+    return { cols: 7, rows: 6, home: true, stations: [{ id: "you", ...STATION_INFO.you, label: "Your desk", x: 1, y: 2 }], desks: [], remote: [] };
+  }
+  const cols = OFFICES[s.officeLevel].cols;
+  const perRow = Math.max(2, Math.floor((cols - 1) / 2));
+  const stations: PlacedStation[] = [];
+  const desks: PlacedDesk[] = [];
+  let y = 2;
+
+  // management row: you, partner, managers
+  const managers = s.team.filter((e) => e.role === "manager" && !e.remote);
+  const mgmtSlots = 2 + managers.length;
+  stations.push({ id: "you", ...STATION_INFO.you, x: 1, y });
+  stations.push({ id: "partner", ...STATION_INFO.partner, x: 3, y });
+  managers.forEach((m, i) => {
+    const slot = 2 + i;
+    desks.push({ emp: m, x: 1 + 2 * (slot % perRow), y: y + 3 * Math.floor(slot / perRow) });
+  });
+  y += 3 * Math.ceil(mgmtSlots / perRow);
+
+  for (const id of ["eng", "ops", "design", "mkt", "support"] as StationId[]) {
+    if (!stationUnlocked(s, id)) continue;
+    const role = STATION_INFO[id].role!;
+    const staff = s.team.filter((e) => e.role === role && !e.remote);
+    stations.push({ id, ...STATION_INFO[id], x: 1, y });
+    staff.forEach((e, i) => {
+      const slot = 1 + i;
+      desks.push({ emp: e, x: 1 + 2 * (slot % perRow), y: y + 3 * Math.floor(slot / perRow) });
+    });
+    y += 3 * Math.ceil((1 + staff.length) / perRow);
+  }
+  const remote: PlacedDesk[] = [];
+  const rem = s.team.filter((e) => e.remote);
+  rem.forEach((e, i) => remote.push({ emp: e, x: 1 + 2 * (i % perRow), y: y + 2 * Math.floor(i / perRow) }));
+  if (rem.length) y += 2 * Math.ceil(rem.length / perRow) + 1;
+  return { cols, rows: y + 1, home: false, stations, desks, remote };
+}

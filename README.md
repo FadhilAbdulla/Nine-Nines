@@ -14,22 +14,35 @@ npm run build && npm start
 
 ## How the game works
 
-- **Products**: pick an idea (Pocket Todo → Streaks → Snapfilter → Huddle → Ledgerly → Orbit AI). Dev points build it, design points set launch quality. Only your *focus* product gets work.
-- **Market**: run campaigns to pull in traffic. Quality, reputation and marketers decide how well they convert. Bugs and unanswered support tickets make users churn.
-- **Team**: hire devs, designers, marketers, support and managers. Each manager supports 6 people; overload cuts output. Keep morale up with 1:1s, raises and perks, or people quit.
-- **Tools**: laptops, CI, analytics, helpdesk, cloud hosting, security and more. One-time cost plus a monthly subscription.
-- **Office**: Garage → Co-working → Small office → Tower floor → Glass HQ. Walk your founder around, talk to teammates, use the coffee machine, whiteboard and the door (networking).
-- **Story**: narrative beats and random events pause the game and ask you to choose. Investors offer Seed, Series A and Series B (you give up equity). Reach a $500M valuation with a 40+ team, Glass HQ and a solid reputation to go public.
-- Running out of cash for 10 days closes the company.
+It's a story told in a world you walk around in.
 
-Keys: `Space` pause, `1` / `2` / `3` set speed (1×, 3×, 8×).
+1. **The bedroom.** You create an avatar and start coding a prototype of *Pocket Todo* at your laptop.
+2. **The partner.** When the prototype is about 40% done, your friend Maya walks in and asks: *"Can we create a company?"* Say yes, name the company, and she invests $20,000 for 25%. You move into the garage.
+3. **The first hires.** Alone, you can only get a prototype to 60%. Walk to Maya's desk and hire an **Application Engineer** to finish it. Then hire a **DevOps Engineer**, go to the DevOps desk, and **host** it. Now you launch.
+4. **Grow.** Marketing campaigns bring users. Servers have a capacity, so DevOps and infrastructure tools keep up with traffic. Support, design, managers, new products, funding rounds, bigger offices, and finally an IPO.
+
+### Walking and dashboards
+
+- Walk with the **arrow keys / WASD** (on-screen pad on touch). Your avatar animates, faces the way it walks, and collides with desks.
+- Walk up to a desk and press **E** (or the pop-up button) to open that desk's dashboard. Walk away and it closes.
+  - Director desk: overview, goals, focus, company tree, your laptop
+  - Partner desk: hiring, office upgrades, perks, business tools
+  - Engineering, DevOps, Design, Marketing, Support desks appear as the company needs them
+- Press **E** near a teammate to talk (1:1, raise, move to or from remote, let go). Use ☕ 📝 🚪 the same way.
+- **Company tree** (top bar): the org chart, with vacant departments shown as "not formed yet".
+
+### Office or remote
+
+Each hire is either **in office** (needs a free desk, benefits from perks) or **remote** (no desk or rent, salary −15%, but output −12%, lower morale and a bit more management load). Remote people show up on a video wall in the scene. You can switch anyone from their card.
+
+Other keys: `Space` pause, `1` / `2` / `3` set speed (1×, 3×, 8×).
 
 ## Project layout
 
 ```
-src/game/     pure game logic (types, data, engine tick, story + random events)
+src/game/     pure game logic (types, data, engine tick, story + random events, scene layout)
 src/store/    Zustand store with localStorage persistence
-src/components/  React UI (office scene, panels, overlays)
+src/components/  React UI (walkable scene, avatars, desk dashboards, company tree, overlays)
 scripts/sim.ts   headless bot to sanity-check balance: npm run sim
 legacy/       the original single-file "system design" prototype
 ```

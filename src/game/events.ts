@@ -1,4 +1,5 @@
-import { OFFICES, ROLES } from "./data";
+import { OFFICES, PARTNER, ROLES } from "./data";
+import { foundCompany, startProduct } from "./engine";
 import type { Employee, GameEvent, GameState } from "./types";
 import { clamp, log, money, totalUsers, valuation } from "./util";
 
@@ -7,7 +8,9 @@ const who = (s: GameState): Employee | undefined => (s.team.length ? s.team[s.da
 const cdOK = (s: GameState, k: string) => (s.cooldowns[k] ?? 0) <= s.day;
 const noMoney = (cost: number) => (s: GameState) => (s.cash < cost ? "Not enough cash" : null);
 const securityShield = (s: GameState) => (s.tools.includes("security") ? 0.4 : 1);
-const hasFreeDesk = (s: GameState) => OFFICES[s.officeLevel].desks - 1 - s.team.length;
+const hasFreeDesk = (s: GameState) => OFFICES[s.officeLevel].desks - (s.founded ? 2 : 1) - s.team.length;
+const hasRole = (s: GameState, r: string) => s.team.some((e) => e.role === r);
+const building = (s: GameState) => s.products.find((p) => p.status === "building");
 
 function offer(id: "seed" | "seriesA" | "seriesB", title: string, amount: number, pct: number, minVal: number, minUsers: number, investor: string, blurb: string): GameEvent {
   return {
@@ -47,14 +50,60 @@ export const EVENTS: GameEvent[] = [
     id: "intro",
     kind: "story",
     emoji: "🌙",
-    title: "Midnight in the garage",
+    title: "Midnight in your bedroom",
     cond: () => false,
-    body: (s) => `It's 1:12am. Your laptop fan is louder than the fridge. On the wall: a hand-drawn logo for ${s.company}. ${s.cash >= 5000 ? "You have $5,000 in savings and a very patient landlord." : ""}\n\nBefore the first line of code, what's your story, ${s.founder}?`,
+    body: (s) => `It's 1:12am, ${s.founder}. Your laptop fan is louder than the fridge and you have $${s.cash.toLocaleString("en-US")} in the bank.\n\nYou've had an idea for a to-do app for months. Tonight you finally open an empty project.\n\nWalk to your desk and open your laptop any time. Your engineering work happens there.`,
+    choices: [{ label: "Start coding Pocket Todo", hint: "Begin the prototype", apply: (s) => { startProduct(s, "todo"); return "A blinking cursor. A fresh repo. An energy drink. You are officially building something."; } }],
+  },
+  {
+    id: "partner_offer",
+    kind: "story",
+    emoji: "🤝",
+    title: "A knock at the door",
+    cond: (s) => !s.founded && !!building(s) && building(s)!.progress >= building(s)!.cost * 0.4 && cdOK(s, "partner"),
+    input: { label: "Company name", placeholder: "e.g. Pixel Forge" },
+    body: (s) => `${PARTNER.name}, your old college friend, is standing in the doorway holding two coffees.\n\n"I saw your demo on the group chat. This is good. Really good. I've saved some money and I know how to run a business. Can we create a company together? I'd put in $20,000 for 25%, and we'd use my family's garage as the first office."\n\nYour prototype is ${Math.round((building(s)!.progress / building(s)!.cost) * 100)}% done.`,
     choices: [
-      { label: "I'm an engineer", hint: "Your coding is 25% faster", apply: (s) => { s.background = "engineer"; return "You've shipped code since you were fourteen. The product is where you shine."; } },
-      { label: "I'm a marketer", hint: "Campaigns +20%, a little starting reputation", apply: (s) => { s.background = "marketer"; s.rep += 5; return "You know how to make people care. Your friends' group chats are about to get spammed."; } },
-      { label: "I have family money", hint: "+$9,000 starting cash", apply: (s) => { s.background = "heir"; s.cash += 9_000; return "A generous relative believes in you. Don't waste it, and don't tell your friends."; } },
+      {
+        label: "Yes, let's create a company",
+        hint: "Name it below. Maya invests $20,000 for 25%.",
+        apply: (s, text) => {
+          foundCompany(s, text ?? "");
+          return `${PARTNER.first}: "Welcome to ${s.company}! First problem: your app is only a prototype. You can't finish it alone. We need an application engineer. Come to my desk and we'll hire one."\n\nYou move into the garage. A new desk appears for ${PARTNER.first}.`;
+        },
+      },
+      { label: "Let me think about it", hint: "She'll come back in a couple of weeks", apply: (s) => { s.cooldowns.partner = s.day + 14; return `${PARTNER.first}: "Take your time. But don't take too long."`; } },
     ],
+  },
+  {
+    id: "need_engineer",
+    kind: "story",
+    once: true,
+    emoji: "🧑‍💻",
+    title: "The prototype is stuck",
+    cond: (s) => s.founded && !hasRole(s, "dev") && !!building(s) && building(s)!.progress >= building(s)!.cost * 0.6 - 0.5,
+    body: () => `You've taken the prototype as far as one person can. The code works on your laptop, mostly. Parts of it are held together with comments that say "TODO fix later".\n\n${PARTNER.first}: "You need an application engineer. Walk to my desk, open the dashboard, and hire someone. The garage has two spare desks."`,
+    choices: [{ label: "Go find an engineer", apply: () => "You rub your eyes. For the first time, you're not alone in this." }],
+  },
+  {
+    id: "built_notice",
+    kind: "story",
+    once: true,
+    emoji: "📦",
+    title: "The app is built. Now it needs a home.",
+    cond: (s) => s.products.some((p) => p.status === "built"),
+    body: (s) => `The last feature is merged. ${s.products.find((p) => p.status === "built")?.name} works, but only on your machines.\n\n${PARTNER.first}: "Nobody can use it yet. We have to host it somewhere safe, fast, and online. That's a DevOps engineer's job. Hire one, then go to the DevOps desk and deploy."`,
+    choices: [{ label: "Hire DevOps and deploy", apply: () => "You open the candidates list. One of them lists 'sleeps next to a server rack' as a hobby." }],
+  },
+  {
+    id: "first_deploy",
+    kind: "story",
+    once: true,
+    emoji: "☁️",
+    title: "First deployment",
+    cond: (s) => s.products.some((p) => p.status === "deploying"),
+    body: (s) => `Your DevOps engineer types a command and a terminal fills with green text. ${s.products.find((p) => p.status === "deploying")?.name} is being deployed to its first real server.\n\nRemember: every server has a capacity. More users than capacity means slow pages and angry customers. Keep an eye on the DevOps dashboard.`,
+    choices: [{ label: "Watch the logs scroll", hint: "+1 reputation", apply: (s) => { s.rep += 1; return "Four lines turn red. Then, magically, green again."; } }],
   },
   {
     id: "first_launch",
@@ -78,16 +127,6 @@ export const EVENTS: GameEvent[] = [
     cond: (s) => totalUsers(s) >= 100,
     body: () => "A hundred real people use something you made. Your mom shares it on her feed with 14 exclamation marks.",
     choices: [{ label: "Frame the dashboard screenshot", hint: "+2 reputation", apply: (s) => { s.rep += 2; return "It goes on the garage wall, right next to the hand-drawn logo."; } }],
-  },
-  {
-    id: "need_help",
-    kind: "story",
-    once: true,
-    emoji: "🧠",
-    title: "You can't do it all",
-    cond: (s) => s.day >= 25 && s.team.length === 0 && live(s).length > 0,
-    body: () => "You're coding, answering emails, and fixing the Wi-Fi. A friend says: 'You need a team.'\n\nOpen the Team tab and hire your first person. The garage has room for two.",
-    choices: [{ label: "Okay, let's hire", apply: () => "You open a spreadsheet titled 'People I Can Afford'. It has one row." }],
   },
   {
     id: "first_hire",
@@ -330,6 +369,7 @@ export function pickEvent(s: GameState): string | null {
       return e.id;
     }
   }
+  if (!s.founded) return null;
   if ((s.cooldowns.random ?? 0) > s.day) return null;
   if (Math.random() > 0.045) return null;
   const pool = EVENTS.filter((e) => e.kind === "random" && e.cond(s));

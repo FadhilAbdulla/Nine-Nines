@@ -1,7 +1,8 @@
 import type { Role } from "./types";
 
 export const ROLES: Record<Role, { label: string; emoji: string; blurb: string }> = {
-  dev: { label: "Developer", emoji: "👩‍💻", blurb: "Builds the product and squashes bugs." },
+  dev: { label: "Application Engineer", emoji: "👩‍💻", blurb: "Builds the product and squashes bugs." },
+  devops: { label: "DevOps Engineer", emoji: "☁️", blurb: "Hosts your app, adds server capacity, keeps it online." },
   designer: { label: "Designer", emoji: "🎨", blurb: "Makes it lovable. Quality drives growth." },
   marketer: { label: "Marketer", emoji: "📣", blurb: "Makes every campaign hit harder." },
   support: { label: "Support", emoji: "🎧", blurb: "Answers tickets so users stay happy." },
@@ -20,8 +21,8 @@ export interface Idea {
 }
 
 export const IDEAS: Idea[] = [
-  { id: "todo", name: "Pocket Todo", pitch: "A to-do list. Yes, another one. But yours has dark mode.", cost: 30, arpu: 0.07, market: 40_000, unlock: {}, model: "Ads" },
-  { id: "habit", name: "Streaks", pitch: "Habit tracker with guilt-trip notifications.", cost: 130, arpu: 0.13, market: 150_000, unlock: { users: 300 }, model: "Freemium" },
+  { id: "todo", name: "Pocket Todo", pitch: "A to-do list. Yes, another one. But yours has dark mode.", cost: 80, arpu: 0.1, market: 40_000, unlock: {}, model: "Ads" },
+  { id: "habit", name: "Streaks", pitch: "Habit tracker with guilt-trip notifications.", cost: 200, arpu: 0.13, market: 150_000, unlock: { users: 300 }, model: "Freemium" },
   { id: "photo", name: "Snapfilter", pitch: "Photo filters that make everyone look like a movie poster.", cost: 450, arpu: 0.08, market: 900_000, unlock: { users: 2_000, team: 2 }, model: "Ads + IAP" },
   { id: "chat", name: "Huddle", pitch: "Team chat for companies tired of the big one.", cost: 1_600, arpu: 0.35, market: 600_000, unlock: { users: 8_000, officeLevel: 1 }, model: "B2B seats" },
   { id: "invoice", name: "Ledgerly", pitch: "Invoicing and payments for freelancers and small shops.", cost: 4_500, arpu: 0.55, market: 1_200_000, unlock: { users: 25_000, officeLevel: 2 }, model: "SaaS" },
@@ -36,22 +37,26 @@ export interface ToolDef {
   cost: number;
   monthly?: number;
   minOffice?: number;
-  fx: Partial<{ dev: number; design: number; mkt: number; support: number; mgmt: number; morale: number; server: number; revenue: number; bugs: number; security: number }>;
+  dept: "eng" | "ops" | "design" | "mkt" | "support" | "partner";
+  fx: Partial<{ dev: number; design: number; mkt: number; support: number; mgmt: number; morale: number; server: number; revenue: number; bugs: number; security: number; capacity: number }>;
 }
 
 export const TOOLS: ToolDef[] = [
-  { id: "laptop", name: "Proper laptop", emoji: "💻", desc: "Builds stop taking a coffee break.", cost: 900, fx: { dev: 0.1 } },
-  { id: "monitor", name: "Dual monitors", emoji: "🖥️", desc: "Twice the windows, twice the confidence.", cost: 450, fx: { dev: 0.06, design: 0.06 } },
-  { id: "ide", name: "Pro IDE licenses", emoji: "⌨️", desc: "Autocomplete that actually completes.", cost: 300, monthly: 40, fx: { dev: 0.1 } },
-  { id: "git", name: "Git + CI pipeline", emoji: "🔁", desc: "Tests run themselves. Fewer 3am surprises.", cost: 600, monthly: 30, fx: { bugs: 0.25 } },
-  { id: "design", name: "Design suite", emoji: "🖌️", desc: "Pixel-perfect, finally.", cost: 700, monthly: 50, fx: { design: 0.2 } },
-  { id: "analytics", name: "Analytics dashboard", emoji: "📈", desc: "Know which campaigns actually work.", cost: 1_200, monthly: 80, fx: { mkt: 0.2 } },
-  { id: "helpdesk", name: "Helpdesk software", emoji: "🎫", desc: "Tickets get tagged, routed, and closed faster.", cost: 1_500, monthly: 120, fx: { support: 0.5 } },
-  { id: "payments", name: "Billing & payments stack", emoji: "💳", desc: "Smoother checkout, more revenue per user.", cost: 2_500, monthly: 150, fx: { revenue: 0.12 } },
-  { id: "pm", name: "Project management suite", emoji: "🗂️", desc: "Managers can handle 3 more people each.", cost: 3_000, monthly: 200, minOffice: 1, fx: { mgmt: 3 } },
-  { id: "cloud", name: "Managed cloud hosting", emoji: "☁️", desc: "Servers cost 40% less per user and rarely fall over.", cost: 5_000, monthly: 300, minOffice: 1, fx: { server: 0.4 } },
-  { id: "security", name: "Security suite & audits", emoji: "🛡️", desc: "Breaches and outages hurt far less.", cost: 12_000, monthly: 800, minOffice: 2, fx: { security: 0.6 } },
-  { id: "ml", name: "Experimentation platform", emoji: "🧪", desc: "A/B test everything. Dev and marketing +12%.", cost: 40_000, monthly: 2_000, minOffice: 3, fx: { dev: 0.12, mkt: 0.12 } },
+  { id: "laptop", dept: "eng", name: "Proper laptops", emoji: "💻", desc: "Builds stop taking a coffee break.", cost: 900, fx: { dev: 0.1 } },
+  { id: "monitor", dept: "eng", name: "Dual monitors", emoji: "🖥️", desc: "Twice the windows, twice the confidence.", cost: 450, fx: { dev: 0.06, design: 0.06 } },
+  { id: "ide", dept: "eng", name: "Pro IDE licenses", emoji: "⌨️", desc: "Autocomplete that actually completes.", cost: 300, monthly: 40, fx: { dev: 0.1 } },
+  { id: "git", dept: "eng", name: "Git + CI pipeline", emoji: "🔁", desc: "Tests run themselves. Fewer 3am surprises.", cost: 600, monthly: 30, fx: { bugs: 0.25 } },
+  { id: "ml", dept: "eng", name: "Experimentation platform", emoji: "🧪", desc: "A/B test everything. Dev and marketing +12%.", cost: 40_000, monthly: 2_000, minOffice: 3, fx: { dev: 0.12, mkt: 0.12 } },
+  { id: "cloud", dept: "ops", name: "Managed cloud hosting", emoji: "☁️", desc: "Doubles server capacity, 40% cheaper per user.", cost: 4_000, monthly: 300, fx: { server: 0.4, capacity: 1 } },
+  { id: "cdn", dept: "ops", name: "CDN & caching layer", emoji: "🌐", desc: "Pages load instantly. Doubles capacity again.", cost: 9_000, monthly: 500, minOffice: 1, fx: { capacity: 1 } },
+  { id: "k8s", dept: "ops", name: "Container platform", emoji: "🧱", desc: "Auto-scaling clusters. Capacity ×5.", cost: 40_000, monthly: 2_500, minOffice: 2, fx: { capacity: 4 } },
+  { id: "region", dept: "ops", name: "Multi-region infrastructure", emoji: "🌍", desc: "Servers on three continents. Capacity ×13.", cost: 250_000, monthly: 15_000, minOffice: 3, fx: { capacity: 12 } },
+  { id: "security", dept: "ops", name: "Security suite & audits", emoji: "🛡️", desc: "Breaches and outages hurt far less.", cost: 12_000, monthly: 800, minOffice: 2, fx: { security: 0.6 } },
+  { id: "design", dept: "design", name: "Design suite", emoji: "🖌️", desc: "Pixel-perfect, finally.", cost: 700, monthly: 50, fx: { design: 0.2 } },
+  { id: "analytics", dept: "mkt", name: "Analytics dashboard", emoji: "📈", desc: "Know which campaigns actually work.", cost: 1_200, monthly: 80, fx: { mkt: 0.2 } },
+  { id: "helpdesk", dept: "support", name: "Helpdesk software", emoji: "🎫", desc: "Tickets get tagged, routed, and closed faster.", cost: 1_500, monthly: 120, fx: { support: 0.5 } },
+  { id: "payments", dept: "partner", name: "Billing & payments stack", emoji: "💳", desc: "Smoother checkout, more revenue per user.", cost: 2_500, monthly: 150, fx: { revenue: 0.12 } },
+  { id: "pm", dept: "partner", name: "Project management suite", emoji: "🗂️", desc: "Managers can handle 3 more people each.", cost: 3_000, monthly: 200, minOffice: 1, fx: { mgmt: 3 } },
 ];
 
 export interface DecorDef {
@@ -87,11 +92,11 @@ export interface OfficeDef {
 }
 
 export const OFFICES: OfficeDef[] = [
-  { name: "The Garage", emoji: "🏠", desks: 3, rent: 0, cost: 0, blurb: "Cold floor, warm laptop. Where every legend starts.", cols: 8 },
-  { name: "Co-working space", emoji: "🏢", desks: 9, rent: 45, cost: 3_000, blurb: "Hot desks, free coffee, a neighbor who loves to talk.", cols: 10 },
-  { name: "Small office", emoji: "🏬", desks: 20, rent: 160, cost: 25_000, blurb: "Your own door, your own logo on the wall.", cols: 12 },
-  { name: "Floor in a tower", emoji: "🏙️", desks: 45, rent: 550, cost: 220_000, blurb: "City views and a lobby that says 'we have arrived'.", cols: 14 },
-  { name: "Glass HQ", emoji: "🏛️", desks: 80, rent: 1_700, cost: 2_000_000, blurb: "Your own campus. There is a slide. Obviously.", cols: 16 },
+  { name: "The Garage", emoji: "🏠", desks: 4, rent: 0, cost: 0, blurb: "Cold floor, warm laptop. Where every legend starts.", cols: 9 },
+  { name: "Co-working space", emoji: "🏢", desks: 10, rent: 45, cost: 3_000, blurb: "Hot desks, free coffee, a neighbor who loves to talk.", cols: 11 },
+  { name: "Small office", emoji: "🏬", desks: 22, rent: 160, cost: 25_000, blurb: "Your own door, your own logo on the wall.", cols: 13 },
+  { name: "Floor in a tower", emoji: "🏙️", desks: 46, rent: 550, cost: 220_000, blurb: "City views and a lobby that says 'we have arrived'.", cols: 15 },
+  { name: "Glass HQ", emoji: "🏛️", desks: 82, rent: 1_700, cost: 2_000_000, blurb: "Your own campus. There is a slide. Obviously.", cols: 17 },
 ];
 
 export interface CampaignDef {
@@ -120,6 +125,7 @@ export const LAST = ["Patel", "Kim", "Garcia", "Nguyen", "Okafor", "Silva", "Nov
 
 export const TRAITS: Record<Role, string[]> = {
   dev: ["Night owl", "Perfectionist", "Ships fast", "Loves refactoring"],
+  devops: ["Automates everything", "Pager-proof", "Terminal wizard", "Loves dashboards"],
   designer: ["Obsessed with kerning", "User-research nerd", "Motion wizard"],
   marketer: ["Meme lord", "Data-driven", "Natural storyteller"],
   support: ["Endlessly patient", "Emoji enthusiast", "Calm in a crisis"],
@@ -132,3 +138,5 @@ export const FOCUS_INFO = {
   support: { label: "Support", emoji: "🎧", desc: "You answer tickets yourself." },
   manage: { label: "Manage", emoji: "🧭", desc: "You coach the team: +3 management capacity, morale up." },
 } as const;
+
+export const PARTNER = { name: "Maya Rao", title: "Co-founder", first: "Maya" };

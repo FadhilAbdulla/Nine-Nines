@@ -3,46 +3,36 @@ import { useEffect, useState } from "react";
 import { getEvent } from "@/game/events";
 import { money, num, totalUsers, valuation } from "@/game/util";
 import { useGame } from "@/store/useGame";
+import type { Look } from "@/game/types";
+import { LookPicker } from "./Avatar";
 import { useG } from "./ui";
 
 export function StartScreen() {
   const newGame = useGame((s) => s.newGame);
-  const [company, setCompany] = useState("");
   const [founder, setFounder] = useState("");
+  const [look, setLook] = useState<Look>({ skin: 1, hair: 0, hairColor: 1, shirt: 0 });
   return (
     <main className="start">
       <div className="start-card">
         <p className="eyebrow">A browser story game</p>
         <h1>Nine Nines</h1>
         <p className="lead">
-          It's 1am in a rented garage. You have a laptop, $5,000, and an idea. Ship an app, find your users, hire a team, buy the tools, move into a real office, and one day ring the bell.
+          You are a developer in a small bedroom with a laptop and an idea. Build the app. Someone will notice. A company will follow: engineers, DevOps, marketing, an office, and maybe one day an IPO.
         </p>
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            newGame(company, founder);
+            newGame(founder, look);
           }}
         >
           <label>
             <span className="label">Your name</span>
             <input value={founder} onChange={(e) => setFounder(e.target.value)} placeholder="Alex Rivera" maxLength={24} autoComplete="off" />
           </label>
-          <label>
-            <span className="label">Company name</span>
-            <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Garage Labs" maxLength={28} autoComplete="off" />
-          </label>
-          <button className="btn primary big" type="submit">
-            Start the company
-          </button>
+          <span className="label">Your avatar</span>
+          <LookPicker look={look} onChange={setLook} />
+          <button className="btn primary big" type="submit">Sit down at the laptop</button>
         </form>
-        <ul className="loop">
-          <li>🛠️ Build</li>
-          <li>📣 Market</li>
-          <li>👥 Hire</li>
-          <li>🧰 Buy tools</li>
-          <li>🏢 Move up</li>
-          <li>🔔 IPO</li>
-        </ul>
       </div>
     </main>
   );
@@ -52,6 +42,7 @@ export function EventModal() {
   const g = useG();
   const choose = useGame((s) => s.chooseEvent);
   const close = useGame((s) => s.closeEvent);
+  const [text, setText] = useState("");
   if (!g.event) return null;
   const ev = getEvent(g.event.id);
   if (!ev) return null;
@@ -65,9 +56,15 @@ export function EventModal() {
         {ev.body(g).split("\n\n").map((p, i) => (
           <p key={i} className="body">{p}</p>
         ))}
+        {ev.input && !result && (
+          <label className="inputrow">
+            <span className="label">{ev.input.label}</span>
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder={ev.input.placeholder} maxLength={28} autoComplete="off" autoFocus />
+          </label>
+        )}
         {result ? (
           <>
-            <p className="result">{result}</p>
+            <p className="result" style={{ whiteSpace: "pre-line" }}>{result}</p>
             <button className="btn primary big" autoFocus onClick={close}>Continue</button>
           </>
         ) : (
@@ -75,7 +72,7 @@ export function EventModal() {
             {ev.choices.map((c, i) => {
               const why = c.disabled?.(g) ?? null;
               return (
-                <button key={i} className="choice" disabled={!!why} onClick={() => choose(i)}>
+                <button key={i} className="choice" disabled={!!why} onClick={() => choose(i, text)}>
                   <b>{c.label}</b>
                   <span className="dim small">{why ?? c.hint ?? ""}</span>
                 </button>
@@ -101,7 +98,7 @@ export function EndScreen() {
         <h2>{win ? `${g.company} is public!` : `${g.company} has closed`}</h2>
         {win ? (
           <p className="body">
-            You started in a garage with $5,000 and finished on the trading floor. After {g.day} days, your company is worth <b>{money(val)}</b> with {num(totalUsers(g))} users and {g.team.length} people. Your stake: <b>{money(val * g.equity)}</b>.
+            You started in a bedroom with $1,200 and finished on the trading floor. After {g.day} days, your company is worth <b>{money(val)}</b> with {num(totalUsers(g))} users and {g.team.length} people. Your stake: <b>{money(val * g.equity)}</b>.
           </p>
         ) : (
           <p className="body">The cash ran out on day {g.day}. Every founder fails differently. Hire slower, market smarter, watch the burn, and try again.</p>

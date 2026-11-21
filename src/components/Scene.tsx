@@ -1,202 +1,313 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
-import { DECOR, OFFICES, ROLES } from "@/game/data";
-import { giveRaise, fire, oneOnOne, sceneAction, salaryFor } from "@/game/engine";
-import type { Employee } from "@/game/types";
-import { money } from "@/game/util";
-import { Bar, Stars, useAct, useG } from "./ui";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { DECOR, OFFICES, PARTNER, ROLES } from "@/game/data";
+import { sceneAction } from "@/game/engine";
+import { computeLayout, STATION_INFO, TILE } from "@/game/layout";
+import type { StationId } from "@/game/types";
+import { useUI } from "@/store/useUI";
+import Avatar, { lookFor, PARTNER_LOOK } from "./Avatar";
+import { useAct, useG } from "./ui";
 
-const TILE = 52;
-const deskPos = (i: number, cols: number): [number, number] => {
-  const perRow = Math.max(2, Math.floor((cols - 2) / 2));
-  return [1 + (i % perRow) * 2, 2 + Math.floor(i / perRow) * 3];
+type Near =
+  | { kind: "station"; id: StationId; label: string }
+  | { kind: "person"; id: string; label: string }
+  | { kind: "prop"; key: "coffee" | "whiteboard" | "door"; label: string };
+
+const SPEED = 190; // px per second
+const dist = (px: number, py: number, x: number, y: number, w: number, h: number) => {
+  const dx = Math.max(x - px, 0, px - (x + w));
+  const dy = Math.max(y - py, 0, py - (y + h));
+  return Math.hypot(dx, dy);
 };
-
-const moodFace = (m: number) => (m > 75 ? "😄" : m > 55 ? "🙂" : m > 35 ? "😐" : m > 20 ? "😟" : "😡");
 
 export default function Scene() {
   const g = useG();
   const act = useAct();
+  const { at, dash, setAt, openDash, closeDash, setTalk } = useUI();
+  const L = useMemo(() => computeLayout(g), [g]);
   const office = OFFICES[g.officeLevel];
-  const cols = office.cols;
-  const desks = office.desks;
-  const perRow = Math.max(2, Math.floor((cols - 2) / 2));
-  const deskRows = Math.ceil(desks / perRow);
-  const rows = 2 + deskRows * 3 + 1;
+  const W = L.cols * TILE;
+  const H = L.rows * TILE;
 
-  const [me, setMe] = useState<[number, number]>([1, 3]);
-  const [talk, setTalk] = useState<string | null>(null);
+  // ---- static geometry
+  const solids = useMemo(() => {
+    const r: { x: number; y: number; w: number; h: number }[] = [];
+    for (const s of L.stations) r.push({ x: s.x * TILE, y: s.y * TILE + TILE * 0.96, w: TILE * 1.8, h: TILE * 1.02 });
+    for (const d of L.remote) r.push({ x: d.x * TILE, y: d.y * TILE, w: TILE * 1.8, h: TILE * 1.4 });
+    for (const d of L.desks) r.push({ x: d.x * TILE, y: d.y * TILE + TILE * 0.96, w: TILE * 1.8, h: TILE * 1.02 });
+    return r;
+  }, [L]);
+
+  const props = useMemo(() => {
+    const list: { key: "coffee" | "whiteboard" | "door"; label: string; x: number; y: number; w: number; h: number }[] = [];
+    if (!L.home) {
+      list.push({ key: "door", label: "Go out to a networking meetup ($100)", x: (L.cols - 2) * TILE, y: 0, w: TILE * 1.6, h: TILE * 1.5 });
+      const bottom = L.rows - 1.2;
+      for (const d of DECOR) {
+        if (!g.decor.includes(d.id) || (d.id !== "coffee" && d.id !== "whiteboard")) continue;
+        list.push({ key: d.id as "coffee" | "whiteboard", label: d.id === "coffee" ? "Grab coffee for the team" : "Brainstorm at the whiteboard", x: (0.4 + d.pos[0] * 1.9) * TILE, y: bottom * TILE, w: TILE, h: TILE });
+      }
+    }
+    return list;
+  }, [L, g.decor]);
+
+  // ---- movement
+  const youSt = L.stations.find((s) => s.id === "you")!;
+  const spawn = () => (g.founded && g.officeLevel > 0 ? { x: (L.cols - 1) * TILE, y: TILE * 1.9 } : { x: (youSt.x + 0.9) * TILE, y: (youSt.y + 2.45) * TILE });
+  const pos = useRef(spawn());
+  const keys = useRef<Record<string, boolean>>({});
+  const foundRef = useRef<HTMLDivElement>(null);
+  const [moving, setMoving] = useState(false);
+  const [facing, setFacing] = useState(1);
+  const [near, setNear] = useState<Near | null>(null);
   const [bubble, setBubble] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    setMe([deskPos(0, cols)[0], deskPos(0, cols)[1] + 1]);
-    setTalk(null);
-  }, [g.officeLevel, cols]);
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
-
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
   const say = (t: string) => {
     setBubble(t);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setBubble(null), 2600);
+    timers.current.push(setTimeout(() => setBubble(null), 2400));
   };
 
-  const walk = (x: number, y: number, then?: () => void) => {
-    setMe([x, y]);
+  // live copies for the animation loop
+  const live = useRef({ solids, props, L, g, W, H, frozen: false });
+  live.current = { solids, props, L, g, W, H, frozen: !!g.event };
+
+  const shape = `${g.founded}-${g.officeLevel}`;
+  useEffect(() => {
+    pos.current = spawn();
+    closeDash();
     setTalk(null);
-    if (then) setTimeout(then, 520);
-  };
+    setAt(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shape]);
 
-  const run = (key: "coffee" | "whiteboard" | "door", x: number, y: number) => {
-    walk(x, y, () => {
-      act((s) => {
-        const r = sceneAction(s, key);
-        return r;
-      });
-    });
-  };
+  useEffect(() => {
+    const dirKeys: Record<string, string> = { ArrowUp: "u", ArrowDown: "d", ArrowLeft: "l", ArrowRight: "r", w: "u", s: "d", a: "l", d: "r", W: "u", S: "d", A: "l", D: "r" };
+    const down = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && ["INPUT", "SELECT", "TEXTAREA"].includes(t.tagName)) return;
+      const k = dirKeys[e.key];
+      if (k) { keys.current[k] = true; e.preventDefault(); }
+      if ((e.key === "e" || e.key === "E" || e.key === "Enter") && !live.current.frozen) { e.preventDefault(); interactRef.current(); }
+    };
+    const up = (e: KeyboardEvent) => { const k = dirKeys[e.key]; if (k) keys.current[k] = false; };
+    const blur = () => { keys.current = {}; };
+    window.addEventListener("keydown", down);
+    window.addEventListener("keyup", up);
+    window.addEventListener("blur", blur);
 
-  const emp = talk ? g.team.find((e) => e.id === talk) : undefined;
-  const lightClass = `office lvl${g.officeLevel}`;
+    let raf = 0;
+    let last = performance.now();
+    let wasMoving = false;
+    let lastFace = 1;
+    let lastNear = "";
+    const loop = (now: number) => {
+      const dt = Math.min(0.05, (now - last) / 1000);
+      last = now;
+      const { solids, props, L, W, H, frozen } = live.current;
+      const k = keys.current;
+      let dx = (k.r ? 1 : 0) - (k.l ? 1 : 0);
+      let dy = (k.d ? 1 : 0) - (k.u ? 1 : 0);
+      if (frozen) { dx = 0; dy = 0; }
+      const isMoving = dx !== 0 || dy !== 0;
+      if (isMoving) {
+        const len = Math.hypot(dx, dy);
+        const mx = (dx / len) * SPEED * dt;
+        const my = (dy / len) * SPEED * dt;
+        const blocked = (x: number, y: number) =>
+          x < 14 || x > W - 14 || y < TILE * 1.55 || y > H - 4 || solids.some((s) => x > s.x - 8 && x < s.x + s.w + 8 && y > s.y - 4 && y < s.y + s.h + 4);
+        const p = pos.current;
+        if (!blocked(p.x + mx, p.y)) p.x += mx;
+        if (!blocked(p.x, p.y + my)) p.y += my;
+        if (dx !== 0 && dx !== lastFace) { lastFace = dx; setFacing(dx); }
+      }
+      if (isMoving !== wasMoving) { wasMoving = isMoving; setMoving(isMoving); }
+      const el = foundRef.current;
+      if (el) el.style.transform = `translate(${pos.current.x - 26}px, ${pos.current.y - 60}px)`;
+
+      // nearest interactable
+      const { x, y } = pos.current;
+      let best: Near | null = null;
+      let bd = 46;
+      for (const s of L.stations) {
+        const d = dist(x, y, s.x * TILE, s.y * TILE + TILE * 0.96, TILE * 1.8, TILE * 1.02);
+        if (d < bd) { bd = d; best = { kind: "station", id: s.id, label: (s.id === "you" && !live.current.g.founded ? "Your laptop" : s.label) }; }
+      }
+      for (const r0 of L.remote) {
+        const d = dist(x, y, r0.x * TILE, r0.y * TILE, TILE * 1.8, TILE * 1.4);
+        if (d < bd - 8) { bd = d - 8; best = { kind: "person", id: r0.emp.id, label: r0.emp.name.split(" ")[0] }; }
+      }
+      for (const d0 of L.desks) {
+        const d = dist(x, y, d0.x * TILE, d0.y * TILE + TILE * 0.96, TILE * 1.8, TILE * 1.02);
+        if (d < bd - 8) { bd = d - 8; best = { kind: "person", id: d0.emp.id, label: d0.emp.name.split(" ")[0] }; }
+      }
+      for (const p of props) {
+        const d = dist(x, y, p.x, p.y, p.w, p.h);
+        if (d < bd) { bd = d; best = { kind: "prop", key: p.key, label: p.label }; }
+      }
+      const sig = best ? `${best.kind}:${"id" in best ? best.id : best.key}` : "";
+      if (sig !== lastNear) { lastNear = sig; setNear(best); }
+      raf = requestAnimationFrame(loop);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("keydown", down);
+      window.removeEventListener("keyup", up);
+      window.removeEventListener("blur", blur);
+    };
+  }, []);
+
+  // keep store in sync with which station you're standing at; close dashboards when you walk away
+  useEffect(() => {
+    const st = near?.kind === "station" ? near.id : null;
+    setAt(st);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [near]);
+
+  const interact = () => {
+    const n = near;
+    if (!n) return;
+    if (n.kind === "station") openDash(n.id);
+    else if (n.kind === "person") setTalk(n.id);
+    else {
+      act((s) => sceneAction(s, n.key));
+      say(n.key === "coffee" ? "Coffee time ☕" : n.key === "whiteboard" ? "Big ideas! 📝" : "Networking! 🤝");
+    }
+  };
+  const interactRef = useRef(interact);
+  interactRef.current = interact;
+
+  // partner walks in during the founding scene
+  const partnerVisiting = !g.founded && g.event?.id === "partner_offer";
+  const [partnerIn, setPartnerIn] = useState(false);
+  useEffect(() => {
+    if (!partnerVisiting) { setPartnerIn(false); return; }
+    const t = setTimeout(() => setPartnerIn(true), 80);
+    return () => clearTimeout(t);
+  }, [partnerVisiting]);
+  const [partnerWalking, setPartnerWalking] = useState(false);
+  useEffect(() => {
+    if (!partnerIn) return;
+    setPartnerWalking(true);
+    const t = setTimeout(() => setPartnerWalking(false), 2600);
+    return () => clearTimeout(t);
+  }, [partnerIn]);
+
+  const press = (k: "u" | "d" | "l" | "r", on: boolean) => { keys.current[k] = on; };
+  const title = L.home ? "Your bedroom" : office.name;
+  const blurb = L.home ? "A bed, a desk, a laptop and a dream." : office.blurb;
+  const bottom = L.rows - 1.2;
+  const prompt = near ? (near.kind === "station" ? `Open ${near.label} dashboard` : near.kind === "person" ? `Talk to ${near.label}` : near.label) : null;
+  const showPrompt = !!near && !(near.kind === "station" && dash === near.id);
 
   return (
     <section className="panel scene-panel" aria-label="Office">
       <div className="panel-head">
-        <h2>
-          {office.emoji} {office.name}
-        </h2>
-        <span className="dim small">{office.blurb}</span>
+        <h2>{L.home ? "🛏️" : office.emoji} {title}</h2>
+        <span className="dim small">{blurb}</span>
       </div>
       <div className="scene-scroll">
-        <div className={lightClass} style={{ width: cols * TILE, height: rows * TILE }}>
-          {/* door */}
-          <button className="prop door" style={{ left: (cols - 2) * TILE, top: 0, width: TILE * 1.6, height: TILE * 1.5 }} onClick={() => run("door", cols - 2, 2)} title="Go to a networking meetup ($100)">
-            <span>🚪</span>
-            <small>Go out</small>
-          </button>
-          <div className="sign" style={{ left: TILE, top: 8 }}>{g.company}</div>
+        <div className={`office ${L.home ? "home" : `lvl${g.officeLevel}`}`} style={{ width: W, height: H }}>
+          {!L.home && (
+            <div className="prop door" style={{ left: (L.cols - 2) * TILE, top: 0, width: TILE * 1.6, height: TILE * 1.5 }}>
+              <span>🚪</span>
+              <small>Go out</small>
+            </div>
+          )}
+          {!L.home && <div className="sign" style={{ left: TILE, top: 8 }}>{g.company}</div>}
+          {L.home && (
+            <>
+              <span className="prop decor still" style={{ left: 4.6 * TILE, top: 2 * TILE, fontSize: 44 }}>🛏️</span>
+              <span className="prop decor still" style={{ left: 1.2 * TILE, top: 0.3 * TILE, fontSize: 36 }}>🪟</span>
+              <span className="prop decor still" style={{ left: 5.6 * TILE, top: 0.3 * TILE, fontSize: 30 }}>🌙</span>
+            </>
+          )}
 
-          {/* desks */}
-          {Array.from({ length: desks }).map((_, i) => {
-            const [cx, cy] = deskPos(i, cols);
-            const e: Employee | undefined = i === 0 ? undefined : g.team[i - 1];
-            const isFounder = i === 0;
+          {L.stations.map((st) => {
+            const you = st.id === "you";
+            const partner = st.id === "partner";
+            const staffN = !you && !partner ? g.team.filter((e) => e.role === STATION_INFO[st.id].role).length : 1;
             return (
-              <div key={i} className="deskwrap" style={{ left: cx * TILE, top: cy * TILE, width: TILE * 1.8, height: TILE * 2 }}>
-                <div className={`desk ${isFounder ? "mine" : ""} ${!isFounder && !e ? "empty" : ""}`}>
-                  <span className="mon">{isFounder || e ? "🖥️" : ""}</span>
+              <div key={st.id} className="deskwrap" style={{ left: st.x * TILE, top: st.y * TILE, width: TILE * 1.8, height: TILE * 2 }}>
+                <div className={`desk station ${at === st.id ? "here" : ""} ${you ? "mine" : ""}`}>
+                  <span className="mon">{st.emoji}</span>
+                  <span className="stlabel">{you && !g.founded ? "Your desk" : st.label}{staffN === 0 ? " · empty" : ""}</span>
                 </div>
-                {e && (
-                  <button className={`person ${talk === e.id ? "sel" : ""} m${e.morale > 55 ? "g" : e.morale > 30 ? "w" : "b"}`} onClick={() => walk(cx, cy + 1, () => setTalk(e.id))} title={`${e.name}, ${ROLES[e.role].label}`}>
-                    <span className="face">{ROLES[e.role].emoji}</span>
-                    <span className="nm">{e.name.split(" ")[0]}</span>
-                  </button>
+                {partner && g.founded && (
+                  <div className="seated partner">
+                    <Avatar look={PARTNER_LOOK} role="partner" size={34} typing />
+                    <span className="nm">{PARTNER.first}</span>
+                  </div>
                 )}
-                {!isFounder && !e && <span className="free">free desk</span>}
-                {isFounder && <span className="free you">your desk</span>}
               </div>
             );
           })}
 
-          {/* decor */}
-          {DECOR.filter((d) => g.decor.includes(d.id)).map((d) => {
-            const x = 0.4 + d.pos[0] * 1.9;
-            const y = rows - 1.2;
-            const key = d.id === "coffee" ? "coffee" : d.id === "whiteboard" ? "whiteboard" : null;
-            const onCd = key ? (g.cooldowns[key] ?? 0) > g.day : false;
-            const inner = (
-              <>
-                <span className="em">{d.emoji}</span>
-              </>
-            );
-            return key ? (
-              <button key={d.id} className={`prop decor ${onCd ? "cd" : ""}`} style={{ left: x * TILE, top: y * TILE }} onClick={() => run(key, Math.round(x), Math.round(y) - 1)} title={d.name + (key === "coffee" ? ": refuel the team" : ": brainstorm")}>
-                {inner}
-              </button>
-            ) : (
-              <span key={d.id} className="prop decor still" style={{ left: x * TILE, top: y * TILE }} title={d.name}>
-                {inner}
-              </span>
-            );
-          })}
+          {L.desks.map(({ x, y, emp }) => (
+            <div key={emp.id} className="deskwrap" style={{ left: x * TILE, top: y * TILE, width: TILE * 1.8, height: TILE * 2 }}>
+              <div className="desk"><span className="mon">🖥️</span></div>
+              <div className={`seated person m${emp.morale > 55 ? "g" : emp.morale > 30 ? "w" : "b"} ${near?.kind === "person" && near.id === emp.id ? "near" : ""}`}>
+                <Avatar look={lookFor(emp.id + emp.name, emp.role)} role={emp.role} size={34} typing />
+                <span className="nm">{emp.name.split(" ")[0]}</span>
+              </div>
+            </div>
+          ))}
 
-          {/* founder */}
-          <div className="founder" style={{ transform: `translate(${me[0] * TILE}px, ${me[1] * TILE}px)` }}>
+          {L.remote.length > 0 && (
+            <div className="remote-label" style={{ left: TILE, top: (L.remote[0].y - 0.55) * TILE }}>📺 Remote team (video wall)</div>
+          )}
+          {L.remote.map(({ x, y, emp }) => (
+            <div key={emp.id} className={`remote-tile ${near?.kind === "person" && near.id === emp.id ? "near" : ""}`} style={{ left: x * TILE, top: y * TILE, width: TILE * 1.8, height: TILE * 1.4 }}>
+              <Avatar look={lookFor(emp.id + emp.name, emp.role)} role={emp.role} size={32} typing />
+              <span className="nm">🏠 {emp.name.split(" ")[0]}</span>
+            </div>
+          ))}
+
+          {!L.home &&
+            DECOR.filter((d) => g.decor.includes(d.id)).map((d) => {
+              const x = 0.4 + d.pos[0] * 1.9;
+              const key = d.id === "coffee" ? "coffee" : d.id === "whiteboard" ? "whiteboard" : null;
+              const onCd = key ? (g.cooldowns[key] ?? 0) > g.day : false;
+              return (
+                <span key={d.id} className={`prop decor still ${onCd ? "cd" : ""} ${near?.kind === "prop" && near.key === key ? "near" : ""}`} style={{ left: x * TILE, top: bottom * TILE }} title={d.name}>
+                  {d.emoji}
+                </span>
+              );
+            })}
+
+          {partnerVisiting && (
+            <div className="walker" style={{ transform: partnerIn ? `translate(${3.1 * TILE}px, ${3.6 * TILE}px)` : `translate(${6 * TILE}px, ${5 * TILE}px)` }}>
+              <Avatar look={PARTNER_LOOK} role="partner" size={40} legs walking={partnerWalking} flip />
+              <span className="nm">{PARTNER.first}</span>
+            </div>
+          )}
+
+          <div className="founder" ref={foundRef} style={{ transform: `translate(${pos.current.x - 26}px, ${pos.current.y - 60}px)` }}>
             {bubble && <div className="bubble">{bubble}</div>}
-            <span className="face">🧑‍💼</span>
+            {showPrompt && prompt && (
+              <button className="open-dash" onClick={interact}>
+                {near!.kind === "station" ? "🖥️ " : near!.kind === "person" ? "💬 " : "✋ "}{prompt} <kbd>E</kbd>
+              </button>
+            )}
+            <Avatar look={g.look} role="you" size={40} legs walking={moving} flip={facing < 0} />
             <span className="nm">{g.founder.split(" ")[0]}</span>
           </div>
-
-          {/* clicking floor walks there */}
-          <div
-            className="floor-hit"
-            onClick={(ev) => {
-              const r = (ev.currentTarget as HTMLElement).getBoundingClientRect();
-              walk(Math.floor((ev.clientX - r.left) / TILE), Math.floor((ev.clientY - r.top) / TILE));
-              setBubble(null);
-            }}
-          />
         </div>
       </div>
 
-      {emp && (
-        <div className="chat" role="dialog" aria-label={`Talk to ${emp.name}`}>
-          <div className="chat-top">
-            <strong>
-              {moodFace(emp.morale)} {emp.name}
-            </strong>
-            <span className="dim small">
-              {ROLES[emp.role].label} · {emp.trait}
-            </span>
-            <button className="x" onClick={() => setTalk(null)} aria-label="Close">
-              ✕
+      <div className="controls-row">
+        <p className="dim small tip">
+          Move with <kbd>↑</kbd><kbd>←</kbd><kbd>↓</kbd><kbd>→</kbd> or <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd>. Walk up to a desk and press <kbd>E</kbd> (or the button) to open its dashboard.
+        </p>
+        <div className="dpad" aria-label="On-screen movement pad">
+          {([["u", "▲"], ["l", "◀"], ["d", "▼"], ["r", "▶"]] as const).map(([k, l]) => (
+            <button key={k} className={`dp-${k}`} onPointerDown={(e) => { e.preventDefault(); press(k, true); }} onPointerUp={() => press(k, false)} onPointerLeave={() => press(k, false)} onPointerCancel={() => press(k, false)} aria-label={`Move ${k}`}>
+              {l}
             </button>
-          </div>
-          <div className="chat-grid">
-            <div>
-              <div className="label">Skill</div>
-              <Stars n={emp.skill} />
-            </div>
-            <div>
-              <div className="label">Morale {Math.round(emp.morale)}</div>
-              <Bar value={emp.morale} />
-            </div>
-            <div>
-              <div className="label">Salary</div>
-              <span className="mono">{money(emp.salary)}/mo</span> <span className="dim small">(market {money(salaryFor(emp.role, emp.skill))})</span>
-            </div>
-          </div>
-          <p className="quote">{quoteFor(emp, g.cash)}</p>
-          <div className="row">
-            <button className="btn" onClick={() => act((s) => oneOnOne(s, emp.id))}>
-              1:1 chat
-            </button>
-            <button className="btn" onClick={() => act((s) => giveRaise(s, emp.id))}>
-              Give 15% raise
-            </button>
-            <button
-              className="btn danger"
-              onClick={() => {
-                if (window.confirm(`Let ${emp.name} go? Severance is ${money(emp.salary * 0.5)} and the team will be shaken.`)) {
-                  act((s) => fire(s, emp.id));
-                  setTalk(null);
-                }
-              }}
-            >
-              Let go
-            </button>
-          </div>
+          ))}
         </div>
-      )}
-      <p className="dim small tip">Tip: click the floor to walk around, click teammates to talk, click ☕ 📝 🚪 to use them.</p>
+      </div>
     </section>
   );
-}
-
-function quoteFor(e: Employee, cash: number): string {
-  if (e.morale < 28) return `"Honestly? I'm thinking about quitting."`;
-  if (e.morale < 45) return `"It's been rough lately. I could use some support."`;
-  if (cash < 0) return `"Are we going to be okay? The bank balance looks scary."`;
-  if (e.morale > 80) return `"I love it here. ${e.role === "dev" ? "The code is almost clean!" : "We're onto something."}"`;
-  return `"Things are fine. Coffee would help."`;
 }

@@ -1,19 +1,22 @@
 import { CAMPAIGNS, DECOR, FIRST, IDEAS, LAST, OFFICES, ROLES, TOOLS, TRAITS } from "./data";
 import { pickEvent } from "./events";
-import type { Background, Candidate, Employee, GameState, Role } from "./types";
+import type { Background, Candidate, Employee, GameState, Look, Role } from "./types";
 import { clamp, log, pick, rnd, totalUsers, uid } from "./util";
 
 // ---------- setup ----------
 
-export function newGame(company: string, founder: string): GameState {
+export function newGame(founder: string, look: Look): GameState {
   const background: Background = "engineer";
   const s: GameState = {
     started: true,
-    company: company.trim() || "Garage Labs",
+    founded: false,
+    partnerVisit: false,
+    look,
+    company: "",
     founder: founder.trim() || "Founder",
     background,
     day: 1,
-    cash: 5_000,
+    cash: 1_200,
     rep: 4,
     founderFocus: "code",
     equity: 1,
@@ -39,19 +42,19 @@ export function newGame(company: string, founder: string): GameState {
     seq: 0,
   };
   refreshCandidates(s);
-  log(s, `${s.company} is born in a rented garage. Cash: $${s.cash.toLocaleString("en-US")}.`, "story");
+  log(s, `${s.founder} is alone in a bedroom with a laptop and $${s.cash.toLocaleString("en-US")}.`, "story");
   s.event = { id: "intro" };
   return s;
 }
 
 // ---------- derived numbers ----------
 
-type Fx = { dev: number; design: number; mkt: number; support: number; mgmt: number; morale: number; server: number; revenue: number; bugs: number; security: number };
+type Fx = { dev: number; design: number; mkt: number; support: number; mgmt: number; morale: number; server: number; revenue: number; bugs: number; security: number; capacity: number };
 
 export function deriveStats(s: GameState) { return derive(s); }
 
 export function derive(s: GameState) {
-  const fx: Fx = { dev: 0, design: 0, mkt: 0, support: 0, mgmt: 0, morale: 0, server: 0, revenue: 0, bugs: 0, security: 0 };
+  const fx: Fx = { dev: 0, design: 0, mkt: 0, support: 0, mgmt: 0, morale: 0, server: 0, revenue: 0, bugs: 0, security: 0, capacity: 0 };
   for (const id of s.tools) {
     const t = TOOLS.find((x) => x.id === id);
     if (t) for (const k of Object.keys(t.fx) as (keyof Fx)[]) fx[k] += t.fx[k] ?? 0;
@@ -65,10 +68,10 @@ export function derive(s: GameState) {
   fx.server = Math.min(0.7, fx.server);
   fx.bugs = Math.min(0.7, fx.bugs);
 
-  const mf = (e: Employee) => 0.5 + (e.morale / 100) * 0.7;
+  const mf = (e: Employee) => (0.5 + (e.morale / 100) * 0.7) * (e.remote ? 0.88 : 1);
   const by = (r: Role) => s.team.filter((e) => e.role === r);
   const managers = by("manager").length;
-  const reports = s.team.length - managers;
+  const reports = Math.round(s.team.filter((e) => e.role !== "manager").reduce((a, e) => a + (e.remote ? 1.25 : 1), 0));
   const mgmtCap = 4 + (s.founderFocus === "manage" ? 3 : 0) + managers * (6 + fx.mgmt);
   const overload = Math.max(0, reports - mgmtCap);
   const prodMult = Math.max(0.5, 1 - overload * 0.07);
@@ -92,6 +95,9 @@ export function derive(s: GameState) {
   const coverage = tickets <= 0 ? 1 : Math.min(1, supportCap / tickets);
 
   const users = totalUsers(s);
+  const opsSum = by("devops").reduce((a, e) => a + e.skill * mf(e), 0);
+  const capacity = (400 + opsSum * 600) * (1 + fx.capacity);
+  const load = users / capacity;
   const salaries = s.team.reduce((a, e) => a + e.salary / 30, 0);
   const rent = OFFICES[s.officeLevel].rent;
   const subs = s.tools.reduce((a, id) => a + (TOOLS.find((t) => t.id === id)?.monthly ?? 0) / 30, 0);
@@ -99,7 +105,7 @@ export function derive(s: GameState) {
   const living = 14;
   const burn = salaries + rent + subs + servers + living;
 
-  return { fx, managers, reports, mgmtCap, overload, prodMult, devPts, designPts, mktPower, supportCap, tickets, coverage, revenue, salaries, rent, subs, servers, living, burn, users };
+  return { capacity, load, hasEngineer: by("dev").length > 0, hasOps: by("devops").length > 0, fx, managers, reports, mgmtCap, overload, prodMult, devPts, designPts, mktPower, supportCap, tickets, coverage, revenue, salaries, rent, subs, servers, living, burn, users };
 }
 
 // ---------- the daily tick ----------
@@ -127,10 +133,20 @@ export function tick(s: GameState) {
     const isFocus = p.id === s.focusId;
     if (p.status === "building") {
       if (isFocus) {
-        p.progress += d.devPts;
-        p.designProgress += d.designPts;
-        if (p.progress >= p.cost) launch(s, p);
+        const cap = d.hasEngineer ? p.cost : p.cost * 0.6;
+        p.progress = Math.min(cap, p.progress + d.devPts);
+        p.designProgress = Math.min(p.cost, p.designProgress + d.designPts);
+        if (p.progress >= p.cost) {
+          p.status = "built";
+          log(s, `🛠️ ${p.name} is built. It still needs to be hosted.`, "story");
+        }
       }
+      continue;
+    }
+    if (p.status === "built") continue;
+    if (p.status === "deploying") {
+      p.deployLeft -= 1;
+      if (p.deployLeft <= 0) launch(s, p);
       continue;
     }
     // live product
@@ -151,15 +167,16 @@ export function tick(s: GameState) {
     p.quality = clamp(p.quality, 0, 100);
 
     const room = Math.max(0, 1 - p.users / idea.market);
-    const discovery = (s.rep * 0.12 + p.quality * 0.08) * room;
-    const word = p.users * 0.004 * (p.quality / 60) * room;
+    const thr = d.load > 1 ? 1 / (d.load * d.load) : 1;
+    const discovery = (s.rep * 0.12 + p.quality * 0.08) * room * thr;
+    const word = p.users * 0.004 * (p.quality / 60) * room * thr;
     let marketing = 0;
     for (const c of s.campaigns) {
       if (c.productId !== p.id) continue;
       const def = CAMPAIGNS.find((x) => x.id === c.defId)!;
-      marketing += def.upd * d.mktPower * (0.5 + p.quality / 100) * room;
+      marketing += def.upd * d.mktPower * (0.5 + p.quality / 100) * room * thr;
     }
-    const churnRate = 0.006 + p.bugs * 0.0004 + (1 - d.coverage) * 0.012 + Math.max(0, 50 - p.quality) * 0.0001;
+    const churnRate = 0.006 + p.bugs * 0.0004 + (1 - d.coverage) * 0.012 + Math.max(0, 50 - p.quality) * 0.0001 + (d.load > 1 ? Math.min(0.08, (d.load - 1) * 0.05) : 0);
     p.users = Math.max(0, p.users + discovery + word + marketing - p.users * churnRate);
   }
 
@@ -172,8 +189,9 @@ export function tick(s: GameState) {
   // people
   const baseMorale = 58 + d.fx.morale - d.overload * 4 + (s.founderFocus === "manage" ? 5 : 0) + (s.cash < 0 ? -10 : 0);
   for (const e of [...s.team]) {
-    const payBonus = e.salary > salaryFor(e.role, e.skill) * 1.05 ? 6 : e.salary < salaryFor(e.role, e.skill) * 0.9 ? -8 : 0;
-    const target = clamp(baseMorale + payBonus + (e.trait === "Night owl" ? -3 : 0), 5, 100);
+    const mkt = salaryFor(e.role, e.skill) * (e.remote ? 0.85 : 1);
+    const payBonus = e.salary > mkt * 1.05 ? 6 : e.salary < mkt * 0.9 ? -8 : 0;
+    const target = clamp(baseMorale + payBonus + (e.trait === "Night owl" ? -3 : 0) - (e.remote ? 4 + d.fx.morale * 0.5 : 0), 5, 100);
     e.morale = clamp(e.morale + (target - e.morale) * 0.04, 0, 100);
     e.lowDays = e.morale < 28 ? e.lowDays + 1 : 0;
     if (e.lowDays >= 12) {
@@ -193,7 +211,7 @@ export function tick(s: GameState) {
   if (live.length) {
     const avgQ = live.reduce((a, p) => a + p.quality, 0) / live.length;
     const avgB = live.reduce((a, p) => a + p.bugs, 0) / live.length;
-    const target = clamp(avgQ * 0.7 + d.coverage * 20 - avgB * 0.4 + Math.min(10, d.users / 20_000), 0, 100);
+    const target = clamp(avgQ * 0.7 + d.coverage * 20 - avgB * 0.4 + Math.min(10, d.users / 20_000) - (d.load > 1 ? Math.min(15, (d.load - 1) * 10) : 0), 0, 100);
     s.rep += (target - s.rep) * (target > s.rep ? 0.004 : 0.01);
   }
   s.rep = clamp(s.rep, 0, 100);
@@ -234,35 +252,47 @@ function launch(s: GameState, p: (typeof s.products)[number]) {
 // ---------- hiring ----------
 
 export function salaryFor(role: Role, skill: number): number {
-  const base = 1_200 + skill * 550;
+  const base = 900 + skill * 400;
   return Math.round((role === "manager" ? base * 1.3 : role === "support" ? base * 0.85 : base) / 10) * 10;
 }
 
 function makeCandidate(s: GameState, role?: Role): Candidate {
-  const r = role ?? pick<Role>(["dev", "dev", "designer", "marketer", "support", "manager"]);
+  const r = role ?? pick<Role>(["dev", "devops", "designer", "marketer", "support", "manager"]);
   const cap = 3 + Math.round(s.officeLevel * 1.6) + Math.floor(Math.random() * 3);
   const skill = clamp(Math.round(rnd(1, cap)), 1, 10);
   return { id: uid(s, "c"), name: `${pick(FIRST)} ${pick(LAST)}`, role: r, skill, salary: salaryFor(r, skill), trait: pick(TRAITS[r]) };
 }
 
 export function refreshCandidates(s: GameState) {
-  s.candidates = [makeCandidate(s, "dev"), makeCandidate(s), makeCandidate(s), makeCandidate(s)];
+  s.candidates = [makeCandidate(s, "dev"), makeCandidate(s, "devops"), makeCandidate(s), makeCandidate(s), makeCandidate(s)];
 }
 
 export const deskCount = (s: GameState) => OFFICES[s.officeLevel].desks;
-export const freeDesks = (s: GameState) => deskCount(s) - 1 - s.team.length;
+export const freeDesks = (s: GameState) => deskCount(s) - (s.founded ? 2 : 1) - s.team.filter((e) => !e.remote).length;
 export const signingFee = (c: Candidate) => Math.round(c.salary * 0.3);
+export const remoteSalary = (n: number) => Math.round((n * 0.85) / 10) * 10;
 
-export function hire(s: GameState, id: string): string | null {
+export function setRemote(s: GameState, id: string, remote: boolean): string | null {
+  const e = s.team.find((x) => x.id === id);
+  if (!e) return null;
+  if (!remote && freeDesks(s) <= 0) return "No free desk for them. Upgrade the office first.";
+  e.remote = remote;
+  e.morale = clamp(e.morale + (remote ? -3 : 4), 0, 100);
+  log(s, remote ? `${e.name} now works remotely.` : `${e.name} is back in the office.`, "info");
+  return null;
+}
+
+export function hire(s: GameState, id: string, remote = false): string | null {
   const c = s.candidates.find((x) => x.id === id);
   if (!c) return "Candidate is gone.";
-  if (freeDesks(s) <= 0) return "No free desks. Upgrade your office.";
+  if (!s.founded) return "Found the company first.";
+  if (!remote && freeDesks(s) <= 0) return "No free desks. Upgrade your office or hire remotely.";
   const fee = signingFee(c);
   if (s.cash < fee) return "Not enough cash for the signing fee.";
   s.cash -= fee;
-  s.team.push({ id: uid(s, "e"), name: c.name, role: c.role, skill: c.skill, morale: 75, salary: c.salary, hiredDay: s.day, trait: c.trait, lowDays: 0 });
+  s.team.push({ id: uid(s, "e"), name: c.name, role: c.role, skill: c.skill, morale: remote ? 70 : 75, salary: remote ? remoteSalary(c.salary) : c.salary, hiredDay: s.day, trait: c.trait, lowDays: 0, remote });
   s.candidates = s.candidates.filter((x) => x.id !== id);
-  log(s, `${c.name} joined as ${ROLES[c.role].label} (skill ${c.skill}).`, "good");
+  log(s, `${c.name} joined${remote ? " remotely" : ""} as ${ROLES[c.role].label} (skill ${c.skill}).`, "good");
   return null;
 }
 
@@ -300,12 +330,52 @@ export function giveRaise(s: GameState, id: string): string | null {
 
 // ---------- purchases & actions ----------
 
+export function deployCost(p: { cost: number }) {
+  return 150 + Math.round(p.cost * 0.5);
+}
+
+export function deployProduct(s: GameState, id: string): string | null {
+  const p = s.products.find((x) => x.id === id);
+  if (!p || p.status !== "built") return "Nothing to deploy.";
+  const ops = s.team.filter((e) => e.role === "devops");
+  if (!ops.length) return "You need a DevOps engineer to host it. Hire one at your partner's desk.";
+  const cost = deployCost(p);
+  if (s.cash < cost) return "Not enough cash for hosting setup.";
+  s.cash -= cost;
+  const best = Math.max(...ops.map((e) => e.skill));
+  p.status = "deploying";
+  p.deployLeft = Math.max(2, 8 - best);
+  log(s, `DevOps started deploying ${p.name} (${p.deployLeft} days).`, "info");
+  return null;
+}
+
+export function designSprint(s: GameState): string | null {
+  const p = s.products.find((x) => x.id === s.focusId && x.status === "live");
+  if (!p) return "Your focus product must be live.";
+  if ((s.cooldowns.sprint ?? 0) > s.day) return "The team needs a break from research. Try again later.";
+  const cost = 400 + s.officeLevel * 600;
+  if (s.cash < cost) return "Not enough cash for user research.";
+  s.cash -= cost;
+  s.cooldowns.sprint = s.day + 14;
+  p.quality = clamp(p.quality + 4 + derive(s).designPts * 0.2, 0, 100);
+  log(s, `Design sprint finished. ${p.name} feels noticeably better.`, "good");
+  return null;
+}
+
+export function foundCompany(s: GameState, name: string) {
+  s.company = name.trim() || "Garage Labs";
+  s.founded = true;
+  s.cash += 20_000;
+  s.equity = 0.75;
+  log(s, `🏁 ${s.company} is founded. Your partner invested $20,000 for 25%.`, "story");
+}
+
 export function startProduct(s: GameState, ideaId: string): string | null {
   const idea = IDEAS.find((i) => i.id === ideaId);
   if (!idea) return "Unknown idea.";
-  if (s.products.some((p) => p.status === "building")) return "Finish the product you're building first.";
+  if (s.products.some((p) => p.status !== "live")) return "Finish the product you're working on first.";
   if (s.products.some((p) => p.ideaId === ideaId)) return "You already built that one.";
-  s.products.push({ id: uid(s, "p"), ideaId, name: idea.name, status: "building", progress: 0, designProgress: 0, cost: idea.cost, quality: 0, users: 0, bugs: 0, version: 1, updatePts: 0, revenueTotal: 0 });
+  s.products.push({ id: uid(s, "p"), ideaId, name: idea.name, status: "building", deployLeft: 0, progress: 0, designProgress: 0, cost: idea.cost, quality: 0, users: 0, bugs: 0, version: 1, updatePts: 0, revenueTotal: 0 });
   s.focusId = s.products[s.products.length - 1].id;
   log(s, `Started building ${idea.name}.`, "info");
   return null;
@@ -314,6 +384,7 @@ export function startProduct(s: GameState, ideaId: string): string | null {
 export function ideaUnlocked(s: GameState, ideaId: string): string | null {
   const idea = IDEAS.find((i) => i.id === ideaId)!;
   const u = idea.unlock;
+  if (ideaId !== "todo" && !s.founded) return "Found the company first";
   const users = totalUsers(s);
   if (u.users && s.peakUsers < u.users && users < u.users) return `Reach ${u.users.toLocaleString("en-US")} users`;
   if (u.team && s.team.length < u.team) return `Hire ${u.team} people`;
