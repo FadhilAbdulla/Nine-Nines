@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { CAMPAIGNS, DECOR, FOCUS_INFO, IDEAS, OFFICES, PARTNER, ROLES, TOOLS, type ToolDef } from "@/game/data";
-import { remoteSalary, buyDecor, buyTool, deployCost, deployProduct, derive, designSprint, freeDesks, ideaUnlocked, refreshCandidatesPaid, runCampaign, setFocus, signingFee, startProduct, upgradeOffice, hire } from "@/game/engine";
+import { handsOnCooldown, sourceRole, remoteSalary, buyDecor, buyTool, deployCost, deployProduct, derive, designSprint, freeDesks, ideaUnlocked, refreshCandidatesPaid, runCampaign, setFocus, signingFee, startProduct, upgradeOffice, hire } from "@/game/engine";
 import { STATION_INFO } from "@/game/layout";
 import type { FounderFocus, Role, StationId } from "@/game/types";
 import { dailyRevenueAvg, money, num, totalUsers, valuation } from "@/game/util";
@@ -17,13 +17,70 @@ function Staff({ role }: { role: Role }) {
   const staff = g.team.filter((e) => e.role === role);
   return (
     <div className="staffbar">
-      {staff.length === 0 && <span className="dim small">No {ROLES[role].label.toLowerCase()}s yet. Hire at {PARTNER.first}'s desk.</span>}
+      {staff.length === 0 && <span className="dim small">No {ROLES[role].label.toLowerCase()}s yet. Do it yourself or hire below.</span>}
       {staff.map((e) => (
         <button key={e.id} className="chip-person" onClick={() => setTalk(e.id)} title="Open card">
           <Avatar look={lookFor(e.id + e.name, e.role)} role={e.role} size={28} />
           <span>{e.remote ? "🏠 " : ""}{e.name.split(" ")[0]} <span className="dim">· {e.skill}</span></span>
         </button>
       ))}
+    </div>
+  );
+}
+
+function HireInline({ role }: { role: Role }) {
+  const g = useG();
+  const act = useAct();
+  const free = freeDesks(g);
+  const cands = g.candidates.filter((c) => c.role === role);
+  const cost = 150 + g.officeLevel * 300;
+  return (
+    <div className="hire-inline">
+      <div className="partner-head">
+        <Avatar look={PARTNER_LOOK} role="partner" size={38} />
+        <p className="small">"{PARTNER.first} here. I handle HR: sourcing, interviews, onboarding and check-ins. Pick someone and I'll bring them on."</p>
+      </div>
+      {cands.length === 0 && <p className="dim small">No {ROLES[role].label.toLowerCase()} candidates right now.</p>}
+      {cands.map((c) => (
+        <div key={c.id} className="card">
+          <div className="card-head">
+            <span className="cand-name"><Avatar look={lookFor(c.id + c.name, c.role)} role={c.role} size={30} /><strong>{c.name}</strong></span>
+            <span className="mono small">{money(c.salary)}/mo</span>
+          </div>
+          <div className="kv"><div><span className="label">Skill</span><Stars n={c.skill} /></div><div><span className="label">Trait</span><span className="small">{c.trait}</span></div></div>
+          <div className="row">
+            <button className="btn primary" disabled={free <= 0 || g.cash < signingFee(c)} onClick={() => act((s) => hire(s, c.id, false))}>🏢 In office</button>
+            <button className="btn" disabled={g.cash < Math.round(remoteSalary(c.salary) * 0.3)} onClick={() => act((s) => hire(s, c.id, true))}>🏠 Remote · {money(remoteSalary(c.salary))}/mo</button>
+          </div>
+        </div>
+      ))}
+      <button className="btn" onClick={() => act((s) => sourceRole(s, role))}>Ask {PARTNER.first} to source more · {money(cost)}</button>
+      {free <= 0 && <p className="badc small">No free desks: hire remotely or move to a bigger office.</p>}
+    </div>
+  );
+}
+
+function JobChoice({ role, mineTitle, mineDesc, mineLabel, onMine, mineDisabled }: { role: Role; mineTitle: string; mineDesc: string; mineLabel: string; onMine: () => void; mineDisabled?: string | null }) {
+  const [hiring, setHiring] = useState(false);
+  const g = useG();
+  const n = g.team.filter((e) => e.role === role).length;
+  return (
+    <div className="stack">
+      <div className="jobchoice">
+        <div className="jc mine">
+          <b>🧑 Do it myself</b>
+          <p className="small">{mineDesc}</p>
+          <button className="btn primary" disabled={!!mineDisabled} onClick={onMine}>{mineDisabled ?? mineLabel}</button>
+          <span className="dim small">{mineTitle}</span>
+        </div>
+        <div className="jc hire">
+          <b>🧑‍💼 Hire an employee</b>
+          <p className="small">{n > 0 ? `${n} ${ROLES[role].label.toLowerCase()}${n > 1 ? "s" : ""} on the job already. They work automatically.` : `A ${ROLES[role].label.toLowerCase()} does this for you, every day.`}</p>
+          <button className="btn" onClick={() => setHiring((h) => !h)}>{hiring ? "Hide candidates" : `Hire a ${ROLES[role].label}`}</button>
+          <span className="dim small">{ROLES[role].blurb}</span>
+        </div>
+      </div>
+      {hiring && <HireInline role={role} />}
     </div>
   );
 }
@@ -145,9 +202,34 @@ function Products() {
 }
 
 function EngDash() {
+  const g = useG();
+  const openHands = useUI((u) => u.openHands);
+  const cd = handsOnCooldown(g, "code");
+  const focus = g.products.find((p) => p.id === g.focusId);
+  const can = focus && (focus.status === "building" || focus.status === "live");
+  if (!g.founded) {
+    return (
+      <>
+        <div className="card focus">
+          <strong>🧑 Code it yourself</strong>
+          <p className="small">It's just you. Write the code by hand: you handle the technical details and your score sets the progress. Passive coding also continues while you wait.</p>
+          <button className="btn primary" disabled={!can || cd > 0} onClick={() => openHands({ kind: "code" })}>{cd > 0 ? `Resting ${cd}d` : "⌨️ Code a feature"}</button>
+        </div>
+        <Products />
+      </>
+    );
+  }
   return (
     <>
       <Staff role="dev" />
+      <JobChoice
+        role="dev"
+        mineTitle="Hands-on: you solve real coding questions. Clean code = more progress."
+        mineDesc="Write the code yourself. You handle the technical details, and your score sets the progress."
+        mineLabel="⌨️ Code a feature"
+        mineDisabled={!can ? "Pick a product in development first" : cd > 0 ? `Resting ${cd}d` : null}
+        onMine={() => openHands({ kind: "code" })}
+      />
       <Products />
       <ToolList dept="eng" />
     </>
@@ -158,6 +240,8 @@ function EngDash() {
 function OpsDash() {
   const g = useG();
   const act = useAct();
+  const openHands = useUI((u) => u.openHands);
+  const [hireOps, setHireOps] = useState(false);
   const d = derive(g);
   const built = g.products.filter((p) => p.status === "built");
   const deploying = g.products.filter((p) => p.status === "deploying");
@@ -181,16 +265,27 @@ function OpsDash() {
       {built.map((p) => (
         <div key={p.id} className="card focus">
           <div className="card-head"><strong>{p.name}</strong><span className="pill info">Ready to host</span></div>
-          <p className="small">{d.hasOps ? "Your DevOps engineer is ready to ship it." : "You need a DevOps engineer first. Hire one at the partner desk."}</p>
-          <button className="btn primary" disabled={!d.hasOps || g.cash < deployCost(p)} onClick={() => act((s) => deployProduct(s, p.id))}>
-            Deploy · {money(deployCost(p))}
-          </button>
+          <p className="small">Choose how to take it live. Hosting setup costs {money(deployCost(p))}.</p>
+          <div className="jobchoice">
+            <div className="jc mine">
+              <b>🧑 Do it myself</b>
+              <p className="small">Run the deployment steps in the right order. Slower (8 days) and mistakes add bugs.</p>
+              <button className="btn primary" disabled={g.cash < deployCost(p)} onClick={() => openHands({ kind: "deploy", productId: p.id })}>☁️ Deploy it</button>
+            </div>
+            <div className="jc hire">
+              <b>🧑‍💼 DevOps team</b>
+              <p className="small">{d.hasOps ? "Your DevOps engineer deploys it faster and cleaner." : "You need a DevOps engineer. Hire one below."}</p>
+              <button className="btn" disabled={!d.hasOps || g.cash < deployCost(p)} onClick={() => act((s) => deployProduct(s, p.id))}>Have DevOps deploy</button>
+            </div>
+          </div>
         </div>
       ))}
       {deploying.map((p) => (
         <div key={p.id} className="card"><strong>{p.name}</strong><p className="small">Deploying… {p.deployLeft} day(s) left.</p></div>
       ))}
       {built.length + deploying.length === 0 && <p className="dim small">Nothing waiting to be hosted.</p>}
+      <button className="btn" onClick={() => setHireOps((h) => !h)}>{hireOps ? "Hide candidates" : "🧑‍💼 Hire a DevOps Engineer"}</button>
+      {hireOps && <HireInline role="devops" />}
       <ToolList dept="ops" />
     </div>
   );
@@ -200,11 +295,20 @@ function OpsDash() {
 function DesignDash() {
   const g = useG();
   const act = useAct();
+  const openHands = useUI((u) => u.openHands);
   const d = derive(g);
   const cost = 400 + g.officeLevel * 600;
   return (
     <div className="stack">
       <Staff role="designer" />
+      <JobChoice
+        role="designer"
+        mineTitle="Hands-on: make real usability decisions. Good calls = better quality."
+        mineDesc="Design the UX yourself. Your decisions raise design progress or product quality."
+        mineLabel="🎨 Design the UX"
+        mineDisabled={!g.products.some((p) => p.id === g.focusId && p.status !== "built" && p.status !== "deploying") ? "Pick a product in development or live" : handsOnCooldown(g, "design") > 0 ? `Resting ${handsOnCooldown(g, "design")}d` : null}
+        onMine={() => openHands({ kind: "design" })}
+      />
       <div className="card">
         <div className="kv">
           <div><span className="label">Design output</span><b className="mono">{d.designPts.toFixed(1)}/day</b></div>
@@ -229,6 +333,8 @@ function DesignDash() {
 function MktDash() {
   const g = useG();
   const act = useAct();
+  const openHands = useUI((u) => u.openHands);
+  const [hireMkt, setHireMkt] = useState(false);
   const live = g.products.filter((p) => p.status === "live");
   const [pid, setPid] = useState("");
   const target = live.find((p) => p.id === pid) ?? live[0];
@@ -265,14 +371,17 @@ function MktDash() {
                 <div className="card-head"><strong>{c.emoji} {c.name}</strong><span className="mono">{money(c.cost)}</span></div>
                 <p className="small">{c.desc}</p>
                 <div className="row">
-                  <button className="btn primary" disabled={!!lock || running || g.cash < c.cost} onClick={() => act((s) => runCampaign(s, c.id, target.id))}>{lock ? `🔒 ${lock}` : running ? "Running" : "Launch"}</button>
-                  <span className="dim small">{c.days} days · ≈{num(est)} users · ~{money(c.cost / Math.max(1, est))}/user</span>
+                  <button className="btn primary" disabled={!!lock || running || g.cash < c.cost} onClick={() => openHands({ kind: "market", defId: c.id, productId: target.id })}>{lock ? `🔒 ${lock}` : running ? "Running" : "🧑 Plan it myself"}</button>
+                  {!lock && !running && <button className="btn" disabled={g.cash < c.cost} onClick={() => act((s) => runCampaign(s, c.id, target.id))}>{g.team.some((e) => e.role === "marketer") ? "🧑‍💼 Delegate to marketing" : "⚡ Quick launch"}</button>}
                 </div>
+                <span className="dim small">{c.days} days · ≈{num(est)} users · ~{money(c.cost / Math.max(1, est))}/user</span>
               </div>
             );
           })}
         </>
       )}
+      <button className="btn" onClick={() => setHireMkt((h) => !h)}>{hireMkt ? "Hide candidates" : "🧑‍💼 Hire a Marketer"}</button>
+      {hireMkt && <HireInline role="marketer" />}
       <ToolList dept="mkt" />
     </div>
   );
@@ -282,9 +391,19 @@ function MktDash() {
 function SupportDash() {
   const g = useG();
   const d = derive(g);
+  const openHands = useUI((u) => u.openHands);
+  const cd = handsOnCooldown(g, "support");
   return (
     <div className="stack">
       <Staff role="support" />
+      <JobChoice
+        role="support"
+        mineTitle="Hands-on: reply to real customer tickets. Great replies boost capacity for 8 days."
+        mineDesc="Answer tickets personally. Calm, specific replies keep customers and lift reputation."
+        mineLabel="🎧 Answer tickets"
+        mineDisabled={cd > 0 ? `Resting ${cd}d` : null}
+        onMine={() => openHands({ kind: "support" })}
+      />
       <div className="card">
         <div className="kv">
           <div><span className="label">Tickets / day</span><b className="mono">{num(d.tickets)}</b></div>
@@ -312,7 +431,7 @@ function PartnerDash() {
     <div className="stack">
       <div className="partner-head">
         <Avatar look={PARTNER_LOOK} role="partner" size={44} />
-        <p className="small">"{tab === "hire" ? "Who do we bring on? Remember: desks, salaries, and who manages them." : tab === "office" ? "A bigger office means more desks, but rent adds up." : "The right tools make everyone faster."}" <span className="dim">· {PARTNER.first}</span></p>
+        <p className="small">"{tab === "hire" ? "I run HR: sourcing, interviews, onboarding and check-ins (+3 morale for everyone, and I step in when someone's below 40). Who do we bring on?" : tab === "office" ? "A bigger office means more desks, but rent adds up." : "The right tools make everyone faster."}" <span className="dim">· {PARTNER.first}</span></p>
       </div>
       <div className="seg3" role="tablist">
         {(["hire", "office", "tools"] as const).map((t) => (
@@ -412,7 +531,7 @@ function DirectorDash() {
         <button role="tab" aria-selected={tab === "laptop"} onClick={() => setTab("laptop")}>💻 My laptop</button>
       </div>
       {tab === "laptop" ? (
-        <Products />
+        <EngDash />
       ) : (
         <>
           <button className="btn primary" onClick={() => setTree(true)}>🌳 View company tree</button>
@@ -452,7 +571,7 @@ export default function Dashboard({ id }: { id: StationId }) {
   const g = useG();
   return (
     <Frame id={id}>
-      {id === "you" && (g.founded ? <DirectorDash /> : <Products />)}
+      {id === "you" && (g.founded ? <DirectorDash /> : <EngDash />)}
       {id === "partner" && <PartnerDash />}
       {id === "eng" && <EngDash />}
       {id === "ops" && <OpsDash />}
