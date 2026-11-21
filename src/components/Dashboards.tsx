@@ -4,7 +4,7 @@ import { CAMPAIGNS, DECOR, FOCUS_INFO, IDEAS, OFFICES, PARTNER, ROLES, TOOLS, ty
 import { AI_SEAT_MONTHLY, cancelTool, handsOnCooldown, sourceRole, remoteSalary, buyDecor, buyTool, deployCost, deployProduct, derive, designSprint, freeDesks, ideaUnlocked, refreshCandidatesPaid, runCampaign, setFocus, signingFee, startProduct, upgradeOffice, hire } from "@/game/engine";
 import { STATION_INFO } from "@/game/layout";
 import type { FounderFocus, Role, StationId } from "@/game/types";
-import { dailyRevenueAvg, money, num, totalUsers, valuation } from "@/game/util";
+import { dailyRevenueAvg, emotionOf, money, num, totalUsers, valuation } from "@/game/util";
 import { useGame } from "@/store/useGame";
 import { useUI } from "@/store/useUI";
 import Avatar, { lookFor, PARTNER_LOOK } from "./Avatar";
@@ -21,7 +21,7 @@ function Staff({ role }: { role: Role }) {
       {staff.map((e) => (
         <button key={e.id} className="chip-person" onClick={() => setTalk(e.id)} title="Open card">
           <Avatar look={lookFor(e.id + e.name, e.role)} role={e.role} size={28} />
-          <span>{e.remote ? "🏠 " : ""}{e.name.split(" ")[0]} <span className="dim">· {e.skill}</span></span>
+          <span>{emotionOf(e.vitals, e.morale).emoji} {e.remote ? "🏠 " : ""}{e.name.split(" ")[0]} <span className="dim">· {e.skill}</span></span>
         </button>
       ))}
     </div>
@@ -436,6 +436,17 @@ function PartnerDash() {
         <Avatar look={PARTNER_LOOK} role="partner" size={44} />
         <p className="small">"{tab === "hire" ? "I run HR: sourcing, interviews, onboarding and check-ins (+3 morale for everyone, and I step in when someone's below 40). Who do we bring on?" : tab === "office" ? "A bigger office means more desks, but rent adds up." : "The right tools make everyone faster."}" <span className="dim">· {PARTNER.first}</span></p>
       </div>
+      {g.partnerVitals && (
+        <div className="card">
+          <div className="label">{PARTNER.first}'s status · {emotionOf(g.partnerVitals, 75).emoji} {emotionOf(g.partnerVitals, 75).label}</div>
+          <div className="needbars">
+            {([["Energy", g.partnerVitals.energy], ["Fed", g.partnerVitals.hunger], ["Comfort", g.partnerVitals.bladder]] as const).map(([n, val]) => (
+              <div key={n} className="needrow"><span className="dim">{n}</span><Bar value={val} /></div>
+            ))}
+          </div>
+          <p className="dim small">When {PARTNER.first} steps away to eat, rest or use the washroom, her HR care (+3 morale, check-ins) pauses. A washroom, pantry and nap lounge keep everyone close to their desks.</p>
+        </div>
+      )}
       <div className="seg3" role="tablist">
         {(["hire", "office", "tools"] as const).map((t) => (
           <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>{t === "hire" ? "👥 Hire" : t === "office" ? "🏢 Office" : "🧰 Tools"}</button>

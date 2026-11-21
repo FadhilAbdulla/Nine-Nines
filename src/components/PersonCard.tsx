@@ -1,7 +1,7 @@
 "use client";
 import { ROLES } from "@/game/data";
 import { fire, giveRaise, oneOnOne, salaryFor, setRemote } from "@/game/engine";
-import { money } from "@/game/util";
+import { emotionOf, money } from "@/game/util";
 import { useUI } from "@/store/useUI";
 import Avatar, { lookFor } from "./Avatar";
 import { Bar, Stars, useAct, useG } from "./ui";
@@ -33,6 +33,12 @@ export default function PersonCard() {
         <div><span className="label">Skill</span><Stars n={e.skill} /></div>
         <div><span className="label">Morale {Math.round(e.morale)}</span><Bar value={e.morale} /></div>
         <div><span className="label">Salary</span><span className="mono">{money(e.salary)}/mo</span> <span className="dim small">(market {money(salaryFor(e.role, e.skill))})</span></div>
+      </div>
+      <div className="needbars">
+        <div className="label">{emotionOf(e.vitals, e.morale).emoji} {emotionOf(e.vitals, e.morale).label}</div>
+        {([["Energy", e.vitals?.energy ?? 85], ["Hunger", e.vitals?.hunger ?? 85], ["Bladder", e.vitals?.bladder ?? 85]] as const).map(([n, val]) => (
+          <div key={n} className="needrow"><span className="dim">{n === "Hunger" ? "Fed" : n === "Bladder" ? "Comfort" : "Energy"}</span><Bar value={val} /></div>
+        ))}
       </div>
       <p className="quote">{quote}</p>
       <div className="row">

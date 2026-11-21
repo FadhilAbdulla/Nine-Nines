@@ -1,6 +1,6 @@
 import { CAMPAIGNS, DECOR, FIRST, IDEAS, LAST, OFFICES, PARTNER, ROLES, TOOLS, TRAITS } from "./data";
 import { pickEvent } from "./events";
-import type { Background, Candidate, Employee, GameState, Look, Role } from "./types";
+import type { Background, Candidate, Employee, GameState, Look, Role, Vitals } from "./types";
 import { clamp, log, pick, rnd, totalUsers, uid } from "./util";
 
 // ---------- setup ----------
@@ -47,6 +47,66 @@ export function newGame(founder: string, look: Look): GameState {
   return s;
 }
 
+// ---------- needs: energy, hunger, bladder ----------
+
+export function freshVitals(): Vitals {
+  return { energy: 85, hunger: 85, bladder: 85, doing: "work", awayLeft: 0 };
+}
+
+export function workFactor(v?: Vitals): number {
+  if (!v) return 1;
+  switch (v.doing) {
+    case "eat": case "washroom": return 0.4;
+    case "coffee": return 0.5;
+    case "nap": return 0.2;
+    case "out_lunch": case "out_wc": return 0;
+    case "drowsy": return 0.7;
+  }
+  return v.hunger < 20 ? 0.85 : 1;
+}
+
+/** Advance one day of needs. Returns a morale change for the person. */
+export function stepVitals(s: GameState, v: Vitals, remote: boolean): number {
+  let morale = 0;
+  const fac = {
+    washroom: s.decor.includes("washroom"),
+    pantry: s.decor.includes("pantry") || s.decor.includes("kitchen"),
+    lounge: s.decor.includes("lounge"),
+    coffee: s.decor.includes("coffee"),
+  };
+  if (v.doing !== "work" && v.doing !== "drowsy") {
+    v.awayLeft -= 1;
+    if (v.awayLeft <= 0) {
+      if (v.doing === "eat") { v.hunger = 95; if (s.decor.includes("kitchen")) morale += 2; }
+      else if (v.doing === "out_lunch") { v.hunger = 100; morale += 3; }
+      else if (v.doing === "washroom" || v.doing === "out_wc") v.bladder = 100;
+      else if (v.doing === "nap") v.energy = 92;
+      else if (v.doing === "coffee") v.energy = Math.min(100, v.energy + 38);
+      v.doing = "work";
+    }
+    return morale;
+  }
+  if (v.doing === "drowsy") { v.energy += 3; if (v.energy >= 40) v.doing = "work"; }
+  else v.energy -= 2;
+  v.hunger -= 3;
+  v.bladder -= 4;
+  v.energy = clamp(v.energy, 0, 100);
+  v.hunger = clamp(v.hunger, 0, 100);
+  v.bladder = clamp(v.bladder, 0, 100);
+  if (v.hunger < 30) {
+    if (remote || fac.pantry) { v.doing = "eat"; v.awayLeft = 1; }
+    else { v.doing = "out_lunch"; v.awayLeft = 2; }
+  } else if (v.bladder < 25) {
+    if (remote || fac.washroom) { v.doing = "washroom"; v.awayLeft = 1; }
+    else { v.doing = "out_wc"; v.awayLeft = 2; morale -= 2; }
+  } else if (v.energy < 25 && v.doing === "work") {
+    if (remote || fac.lounge) { v.doing = "nap"; v.awayLeft = 2; }
+    else if (fac.coffee) { v.doing = "coffee"; v.awayLeft = 1; }
+    else v.doing = "drowsy";
+  }
+  return morale;
+}
+
 // ---------- derived numbers ----------
 
 type Fx = { dev: number; design: number; mkt: number; support: number; mgmt: number; morale: number; server: number; revenue: number; bugs: number; security: number; capacity: number };
@@ -68,7 +128,7 @@ export function derive(s: GameState) {
   fx.server = Math.min(0.7, fx.server);
   fx.bugs = Math.min(0.7, fx.bugs);
 
-  const mf = (e: Employee) => (0.5 + (e.morale / 100) * 0.7) * (e.remote ? 0.88 : 1);
+  const mf = (e: Employee) => (0.5 + (e.morale / 100) * 0.7) * (e.remote ? 0.88 : 1) * workFactor(e.vitals);
   const by = (r: Role) => s.team.filter((e) => e.role === r);
   const managers = by("manager").length;
   const reports = Math.round(s.team.filter((e) => e.role !== "manager").reduce((a, e) => a + (e.remote ? 1.25 : 1), 0));
@@ -189,14 +249,23 @@ export function tick(s: GameState) {
   for (const c of ended) log(s, `Campaign finished: ${CAMPAIGNS.find((x) => x.id === c.defId)?.name}.`, "info");
   s.campaigns = s.campaigns.filter((c) => c.daysLeft > 0);
 
+  // partner needs: when Maya is away, HR care pauses
+  if (s.founded) {
+    s.partnerVitals = s.partnerVitals ?? freshVitals();
+    stepVitals(s, s.partnerVitals, false);
+  }
+  const hrOn = s.founded && workFactor(s.partnerVitals) >= 0.5;
+
   // people
-  const baseMorale = 58 + (s.founded ? 3 : 0) + d.fx.morale - d.overload * 4 + (s.founderFocus === "manage" ? 5 : 0) + (s.cash < 0 ? -10 : 0);
+  const baseMorale = 58 + (hrOn ? 3 : 0) + d.fx.morale - d.overload * 4 + (s.founderFocus === "manage" ? 5 : 0) + (s.cash < 0 ? -10 : 0);
   for (const e of [...s.team]) {
+    const v = (e.vitals = e.vitals ?? freshVitals());
+    e.morale = clamp(e.morale + stepVitals(s, v, !!e.remote), 0, 100);
     const mkt = salaryFor(e.role, e.skill) * (e.remote ? 0.85 : 1);
     const payBonus = e.salary > mkt * 1.05 ? 6 : e.salary < mkt * 0.9 ? -8 : 0;
-    const target = clamp(baseMorale + payBonus + (e.trait === "Night owl" ? -3 : 0) - (e.remote ? 4 + d.fx.morale * 0.5 : 0), 5, 100);
+    const target = clamp(baseMorale + payBonus + (e.trait === "Night owl" ? -3 : 0) - (e.remote ? 4 + d.fx.morale * 0.5 : 0) - ((v.hunger < 20 ? 4 : 0) + (v.bladder < 15 ? 4 : 0) + (v.energy < 25 ? 3 : 0)), 5, 100);
     e.morale = clamp(e.morale + (target - e.morale) * 0.04, 0, 100);
-    if (s.founded && s.day % 10 === 0 && e.morale < 40) {
+    if (hrOn && s.day % 10 === 0 && e.morale < 40) {
       e.morale = clamp(e.morale + 10, 0, 100);
       log(s, `${PARTNER.first} (HR) had a check-in with ${e.name}. They feel better.`, "info");
     }
@@ -297,7 +366,7 @@ export function hire(s: GameState, id: string, remote = false): string | null {
   const fee = signingFee(c);
   if (s.cash < fee) return "Not enough cash for the signing fee.";
   s.cash -= fee;
-  s.team.push({ id: uid(s, "e"), name: c.name, role: c.role, skill: c.skill, morale: remote ? 70 : 75, salary: remote ? remoteSalary(c.salary) : c.salary, hiredDay: s.day, trait: c.trait, lowDays: 0, remote });
+  s.team.push({ id: uid(s, "e"), name: c.name, role: c.role, skill: c.skill, morale: remote ? 70 : 75, salary: remote ? remoteSalary(c.salary) : c.salary, hiredDay: s.day, trait: c.trait, lowDays: 0, remote, vitals: freshVitals() });
   s.candidates = s.candidates.filter((x) => x.id !== id);
   log(s, `${c.name} joined${remote ? " remotely" : ""} as ${ROLES[c.role].label} (skill ${c.skill}).`, "good");
   return null;

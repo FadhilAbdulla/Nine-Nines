@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DECOR, OFFICES, PARTNER, ROLES } from "@/game/data";
 import { sceneAction } from "@/game/engine";
+import { emotionOf } from "@/game/util";
 import { computeLayout, STATION_INFO, TILE } from "@/game/layout";
 import type { StationId } from "@/game/types";
 import { useUI } from "@/store/useUI";
@@ -25,6 +26,14 @@ const WALL_TONE: Record<string, [string, string]> = {
   lvl3: ["#eef0f6", "#d0d4e2"],
   lvl4: ["#6a7692", "#4c5875"],
 };
+/** Where the i-th owned decor item stands: along the bottom wall, wrapping upward when the room is narrow. */
+const decorSpot = (i: number, cols: number, bottom: number) => {
+  const per = Math.max(3, Math.floor((cols - 0.4) / 1.6));
+  return { x: 0.5 + (i % per) * 1.6, y: bottom - Math.floor(i / per) * 1.25 };
+};
+const gapLineY = (seatY: number) => (2 + 3 * Math.max(0, Math.floor((seatY / TILE - 2) / 3))) * TILE + 2.45 * TILE;
+type NpcTarget = { kind: "seat" | "spot" | "door"; x: number; y: number };
+type NpcLive = { id: string; seat: { x: number; y: number }; doing: string; remote: false; target: NpcTarget };
 const dist = (px: number, py: number, x: number, y: number, w: number, h: number) => {
   const dx = Math.max(x - px, 0, px - (x + w));
   const dy = Math.max(y - py, 0, py - (y + h));
@@ -56,13 +65,53 @@ export default function Scene() {
     if (!L.home) {
       list.push({ key: "door", label: "Go out networking ($100)", x: (L.cols - 2) * TILE, y: 0, w: TILE * 1.6, h: TILE * 1.5 });
       const bottom = L.rows - 1.2;
-      for (const d of DECOR) {
-        if (!g.decor.includes(d.id) || (d.id !== "coffee" && d.id !== "whiteboard")) continue;
-        list.push({ key: d.id as "coffee" | "whiteboard", label: d.id === "coffee" ? "Grab coffee for the team" : "Brainstorm at the whiteboard", x: (0.4 + d.pos[0] * 1.9) * TILE, y: bottom * TILE, w: TILE, h: TILE });
-      }
+      DECOR.filter((d) => g.decor.includes(d.id)).forEach((d, i) => {
+        if (d.id !== "coffee" && d.id !== "whiteboard") return;
+        const sp = decorSpot(i, L.cols, bottom);
+        list.push({ key: d.id as "coffee" | "whiteboard", label: d.id === "coffee" ? "Grab coffee for the team" : "Brainstorm at the whiteboard", x: sp.x * TILE, y: sp.y * TILE, w: TILE, h: TILE });
+      });
     }
     return list;
   }, [L, g.decor]);
+
+  // ---- people who walk around (needs: sleepy / washroom / pantry / out for food)
+  const spots = useMemo(() => {
+    const m: Record<string, { x: number; y: number }> = {};
+    const bottom = L.rows - 1.2;
+    DECOR.filter((d) => g.decor.includes(d.id)).forEach((d, i) => {
+      const sp = decorSpot(i, L.cols, bottom);
+      m[d.id] = { x: (sp.x + 0.5) * TILE, y: (sp.y + 0.95) * TILE };
+    });
+    return m;
+  }, [L, g.decor]);
+  const doorPos = { x: (L.cols - 2) * TILE + 0.8 * TILE, y: 1.75 * TILE };
+  const seatOf = (x: number, y: number) => ({ x: x * TILE + 0.9 * TILE, y: y * TILE + 0.78 * TILE });
+  const npcs: NpcLive[] = useMemo(() => {
+    const list: NpcLive[] = [];
+    const targetFor = (doing: string, seat: { x: number; y: number }): NpcTarget => {
+      const spot = (id: string) => spots[id];
+      if (doing === "eat") { const p = spot("pantry") ?? spot("kitchen"); if (p) return { kind: "spot", ...p }; }
+      if (doing === "washroom") { const p = spot("washroom"); if (p) return { kind: "spot", ...p }; }
+      if (doing === "nap") { const p = spot("lounge"); if (p) return { kind: "spot", ...p }; }
+      if (doing === "coffee") { const p = spot("coffee"); if (p) return { kind: "spot", ...p }; }
+      if (doing === "out_lunch" || doing === "out_wc" || doing === "eat" || doing === "washroom" || doing === "nap") return { kind: "door", ...doorPos };
+      return { kind: "seat", ...seat };
+    };
+    if (g.founded) {
+      const ps = L.stations.find((s) => s.id === "partner");
+      if (ps) { const seat = seatOf(ps.x, ps.y); const doing = g.partnerVitals?.doing ?? "work"; list.push({ id: "maya", seat, doing, remote: false, target: targetFor(doing, seat) }); }
+    }
+    for (const d of L.desks) {
+      const seat = seatOf(d.x, d.y);
+      const doing = d.emp.vitals?.doing ?? "work";
+      list.push({ id: d.emp.id, seat, doing, remote: false, target: targetFor(doing, seat) });
+    }
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [L, spots, g.partnerVitals?.doing, g.team.map((e) => e.vitals?.doing ?? "w").join("|")]);
+  const npcState = useRef<Record<string, { x: number; y: number; path: { x: number; y: number }[]; key: string; moving: boolean; face: number; hidden: boolean }>>({});
+  const npcRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [npcMoving, setNpcMoving] = useState<Record<string, boolean>>({});
 
   // ---- movement
   const youSt = L.stations.find((s) => s.id === "you")!;
@@ -82,7 +131,7 @@ export default function Scene() {
   };
 
   // live copies for the animation loop
-  const live = useRef({ solids, props, L, g, W, H, frozen: false, scale: 1, ext: { x: 0, y: 0, top: HUD_H } });
+  const live = useRef({ solids, props, L, g, W, H, frozen: false, scale: 1, ext: { x: 0, y: 0, top: HUD_H }, npcs, doorPos });
   const scalerRef = useRef<HTMLDivElement>(null);
   const camRef = useRef({ x: 0, y: 0, init: false });
 
@@ -136,6 +185,48 @@ export default function Scene() {
         if (dx !== 0 && dx !== lastFace) { lastFace = dx; setFacing(dx); }
       }
       if (isMoving !== wasMoving) { wasMoving = isMoving; setMoving(isMoving); }
+      // ---- NPCs walk to where their needs take them
+      const laneX = 0.45 * TILE;
+      let movedChange = false;
+      for (const n of live.current.npcs) {
+        const key = `${n.target.kind}:${Math.round(n.target.x)}:${Math.round(n.target.y)}`;
+        let st = npcState.current[n.id];
+        if (!st) { st = { x: n.seat.x, y: n.seat.y, path: [], key: n.target.kind === "seat" ? key : "init", moving: false, face: 1, hidden: false }; npcState.current[n.id] = st; }
+        if (st.key !== key) {
+          st.key = key;
+          if (st.hidden) { st.x = live.current.doorPos.x; st.y = live.current.doorPos.y; st.hidden = false; }
+          const atSeat = Math.abs(st.y - n.seat.y) < 8 && Math.abs(st.x - n.seat.x) < 8;
+          const yFrom = atSeat ? gapLineY(n.seat.y) : st.y;
+          const yTo = n.target.kind === "seat" ? gapLineY(n.seat.y) : n.target.y;
+          const pts = [
+            { x: st.x, y: yFrom }, { x: laneX, y: yFrom }, { x: laneX, y: yTo }, { x: n.target.x, y: yTo }, { x: n.target.x, y: n.target.y },
+          ];
+          st.path = pts.filter((p, i) => i === 0 ? Math.hypot(p.x - st!.x, p.y - st!.y) > 1 : Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y) > 1);
+        }
+        let mv = false;
+        if (st.path.length && !st.hidden) {
+          const wp = st.path[0];
+          const ddx = wp.x - st.x;
+          const ddy = wp.y - st.y;
+          const dd = Math.hypot(ddx, ddy);
+          const step = 120 * dt;
+          if (dd <= step) { st.x = wp.x; st.y = wp.y; st.path.shift(); } else { st.x += (ddx / dd) * step; st.y += (ddy / dd) * step; }
+          if (Math.abs(ddx) > 0.5) st.face = ddx > 0 ? 1 : -1;
+          mv = true;
+          if (!st.path.length && n.target.kind === "door") st.hidden = true;
+        }
+        if (mv !== st.moving) { st.moving = mv; movedChange = true; }
+        const el = npcRefs.current[n.id];
+        if (el) {
+          el.style.transform = `translate(${st.x - 26}px, ${st.y - 52}px)`;
+          el.style.visibility = st.hidden ? "hidden" : "visible";
+        }
+      }
+      if (movedChange) {
+        const snap: Record<string, boolean> = {};
+        for (const k of Object.keys(npcState.current)) snap[k] = npcState.current[k].moving;
+        setNpcMoving(snap);
+      }
       const stage = stageRef.current;
       const sc = scalerRef.current;
       if (stage && sc) {
@@ -166,7 +257,9 @@ export default function Scene() {
         if (d < bd - 8) { bd = d - 8; best = { kind: "person", id: r0.emp.id, label: r0.emp.name.split(" ")[0] }; }
       }
       for (const d0 of L.desks) {
-        const d = dist(x, y, d0.x * TILE, d0.y * TILE + TILE * 0.96, TILE * 1.8, TILE * 1.02);
+        const ns = npcState.current[d0.emp.id];
+        if (!ns || ns.hidden) continue;
+        const d = Math.hypot(x - ns.x, y - ns.y) - 14;
         if (d < bd - 8) { bd = d - 8; best = { kind: "person", id: d0.emp.id, label: d0.emp.name.split(" ")[0] }; }
       }
       for (const p of props) {
@@ -232,7 +325,7 @@ export default function Scene() {
   const press = (k: "u" | "d" | "l" | "r", on: boolean) => { keys.current[k] = on; };
 
   // game camera: fixed zoom that follows you; small rooms are centred
-  live.current = { solids, props, L, g, W, H, frozen: !!g.event, scale: 1, ext };
+  live.current = { solids, props, L, g, W, H, frozen: !!g.event, scale: 1, ext, npcs, doorPos };
   const stageRef = useRef<HTMLElement>(null);
   const [scale, setScale] = useState(1);
   live.current.scale = scale;
@@ -371,12 +464,6 @@ export default function Scene() {
                   <Desk accent={accent} big flavor={st.id.length % 3} />
                   <span className="mon">{st.emoji}</span>
                   <span className="stlabel" style={{ ["--ac" as string]: accent } as React.CSSProperties}>{you && !g.founded ? "Your desk" : st.label}{staffN === 0 ? " · empty" : ""}</span>
-                  {partner && g.founded && (
-                    <div className="seated partner">
-                      <Avatar look={PARTNER_LOOK} role="partner" size={34} typing />
-                      <span className="nm">{PARTNER.first}</span>
-                    </div>
-                  )}
                 </div>
               );
             })}
@@ -384,10 +471,6 @@ export default function Scene() {
             {L.desks.map(({ x, y, emp }) => (
               <div key={emp.id} className="deskwrap" style={{ left: x * TILE, top: y * TILE, width: TILE * 1.8, height: TILE * 2 }}>
                 <Desk accent={accentFor(emp.role)} flavor={emp.id.length % 3} />
-                <div className={`seated person m${emp.morale > 55 ? "g" : emp.morale > 30 ? "w" : "b"} ${near?.kind === "person" && near.id === emp.id ? "near" : ""}`}>
-                  <Avatar look={lookFor(emp.id + emp.name, emp.role)} role={emp.role} size={34} typing />
-                  <span className="nm">{emp.name.split(" ")[0]}</span>
-                </div>
               </div>
             ))}
 
@@ -397,22 +480,40 @@ export default function Scene() {
             {L.remote.map(({ x, y, emp }) => (
               <div key={emp.id} className={`remote-tile ${near?.kind === "person" && near.id === emp.id ? "near" : ""}`} style={{ left: x * TILE, top: y * TILE, width: TILE * 1.8, height: TILE * 1.4 }}>
                 <i className="live" />
+                <span className="emo" title={emotionOf(emp.vitals, emp.morale).label}>{emotionOf(emp.vitals, emp.morale).emoji}</span>
                 <Avatar look={lookFor(emp.id + emp.name, emp.role)} role={emp.role} size={32} typing />
                 <span className="nm">🏠 {emp.name.split(" ")[0]}</span>
               </div>
             ))}
 
             {!L.home &&
-              DECOR.filter((d) => g.decor.includes(d.id)).map((d) => {
-                const x = 0.4 + d.pos[0] * 1.9;
+              DECOR.filter((d) => g.decor.includes(d.id)).map((d, i) => {
+                const sp = decorSpot(i, L.cols, bottom);
+                const x = sp.x;
                 const key = d.id === "coffee" ? "coffee" : d.id === "whiteboard" ? "whiteboard" : null;
                 const onCd = key ? (g.cooldowns[key] ?? 0) > g.day : false;
                 return (
-                  <span key={d.id} className={`prop decor still ${onCd ? "cd" : ""} ${near?.kind === "prop" && near.key === key ? "near" : ""}`} style={{ left: x * TILE, top: bottom * TILE }} title={d.name}>
+                  <span key={d.id} className={`prop decor still ${onCd ? "cd" : ""} ${near?.kind === "prop" && near.key === key ? "near" : ""}`} style={{ left: x * TILE, top: sp.y * TILE }} title={d.name}>
                     <DecorArt id={d.id} />
                   </span>
                 );
               })}
+
+            {npcs.map((n) => {
+              const isMaya = n.id === "maya";
+              const emp = isMaya ? null : g.team.find((e) => e.id === n.id);
+              if (!isMaya && !emp) return null;
+              const emo = isMaya ? emotionOf(g.partnerVitals, 75) : emotionOf(emp!.vitals, emp!.morale);
+              const mood = emp ? (emp.morale > 55 ? "g" : emp.morale > 30 ? "w" : "b") : "g";
+              const mv = !!npcMoving[n.id];
+              return (
+                <div key={n.id} ref={(el) => { npcRefs.current[n.id] = el; }} className={`npc m${mood} ${near?.kind === "person" && near.id === n.id ? "near" : ""}`} style={{ transform: `translate(${n.seat.x - 26}px, ${n.seat.y - 52}px)` }}>
+                  <span className="emo" title={emo.label}>{emo.emoji}</span>
+                  {isMaya ? <Avatar look={PARTNER_LOOK} role="partner" size={mv ? 38 : 34} legs={mv} walking={mv} typing={!mv} /> : <Avatar look={lookFor(emp!.id + emp!.name, emp!.role)} role={emp!.role} size={mv ? 38 : 34} legs={mv} walking={mv} typing={!mv} />}
+                  <span className="nm">{isMaya ? PARTNER.first : emp!.name.split(" ")[0]}</span>
+                </div>
+              );
+            })}
 
             {partnerVisiting && (
               <div className="walker" style={{ transform: partnerIn ? `translate(${4.3 * TILE}px, ${3.6 * TILE}px)` : `translate(${8 * TILE}px, ${5.5 * TILE}px)` }}>

@@ -72,6 +72,9 @@ export interface DecorDef {
 }
 
 export const DECOR: DecorDef[] = [
+  { id: "washroom", name: "Washroom", emoji: "🚻", desc: "Staff stop leaving the building to find one. Fewer, shorter breaks.", cost: 220, minOffice: 0, fx: { morale: 2 }, pos: [0, 0] },
+  { id: "pantry", name: "Pantry & fridge", emoji: "🍱", desc: "Snacks and lunch in the office, so people don't leave to eat.", cost: 350, minOffice: 0, fx: { morale: 2 }, pos: [0, 0] },
+  { id: "lounge", name: "Nap lounge", emoji: "🛋️", desc: "A quiet sofa to recharge when someone is sleepy.", cost: 600, minOffice: 1, fx: { morale: 2 }, pos: [0, 0] },
   { id: "plants", name: "Plants", emoji: "🪴", desc: "Calming. Mostly alive.", cost: 120, minOffice: 0, fx: { morale: 3 }, pos: [0, 0] },
   { id: "coffee", name: "Espresso machine", emoji: "☕", desc: "The real engine of any software company.", cost: 450, minOffice: 0, fx: { morale: 5 }, pos: [1, 0] },
   { id: "whiteboard", name: "Whiteboard wall", emoji: "📝", desc: "Brainstorm for a quick boost. Passive +5% dev.", cost: 400, minOffice: 0, fx: { dev: 0.05 }, pos: [2, 0] },
