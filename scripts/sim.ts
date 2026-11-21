@@ -1,5 +1,6 @@
 // Headless balance simulation: a simple bot plays the whole story.
 import * as E from "../src/game/engine";
+import { EAT_ORDER } from "../src/game/engine";
 import { getEvent } from "../src/game/events";
 import { IDEAS, TOOLS, OFFICES, CAMPAIGNS, DECOR } from "../src/game/data";
 import { totalUsers, valuation, money } from "../src/game/util";
@@ -38,7 +39,9 @@ for (let i = 0; i < 5000 && !s.ended; i++) {
     }
     for (const p of live) for (const c of [...CAMPAIGNS].reverse()) if (s.cash > c.cost * 2.5 && E.runCampaign(s, c.id, p.id) === null) break;
     for (const t of TOOLS) if (s.cash > t.cost * 5 && live.length) E.buyTool(s, t.id);
-    for (const d of DECOR) if (s.cash > d.cost * 5 && live.length) E.buyDecor(s, d.id);
+    const fr = E.facilityReport(s);
+    const queued = (id: string) => (id === "washroom" ? fr[0].queue : EAT_ORDER.includes(id) ? fr[1].queue : 0) > 1;
+    for (const d of DECOR) if (s.cash > d.cost * 5 && live.length && (E.decorUnits(s, d.id) === 0 || queued(d.id))) E.buyDecor(s, d.id);
     const nxt = OFFICES[s.officeLevel + 1];
     if (nxt && E.freeDesks(s) <= 0 && s.cash > nxt.cost * 2.5) E.upgradeOffice(s);
   }

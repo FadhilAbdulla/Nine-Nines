@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DECOR, OFFICES, PARTNER, ROLES } from "@/game/data";
-import { sceneAction, type NetKey } from "@/game/engine";
+import { EAT_ORDER, decorUnits, facilityReport, sceneAction, type NetKey } from "@/game/engine";
 import { emotionOf } from "@/game/util";
 import { computeLayout, STATION_INFO, TILE } from "@/game/layout";
 import type { StationId } from "@/game/types";
@@ -41,6 +41,8 @@ const decorSpot = (i: number, cols: number, bottom: number) => {
   const per = Math.max(3, Math.floor((cols - 0.4) / 1.6));
   return { x: 0.5 + (i % per) * 1.6, y: bottom - Math.floor(i / per) * 1.25 };
 };
+type Unit = { d: (typeof DECOR)[number]; u: number };
+const unitsOf = (decor: string[]): Unit[] => DECOR.flatMap((d) => Array.from({ length: decor.filter((x) => x === d.id).length }, (_, u) => ({ d, u })));
 const gapLineY = (seatY: number) => (2 + 3 * Math.max(0, Math.floor((seatY / TILE - 2) / 3))) * TILE + 2.45 * TILE;
 type NpcTarget = { kind: "seat" | "spot" | "door"; x: number; y: number };
 type NpcLive = { id: string; seat: { x: number; y: number }; doing: string; remote: false; target: NpcTarget };
@@ -101,7 +103,7 @@ export default function Scene() {
     if (inOffice) {
       list.push({ key: "door", label: "Step outside: park, home, networking", x: (L.cols - 2) * TILE, y: 0, w: TILE * 1.6, h: TILE * 1.5 });
       const bottom = L.rows - 1.2;
-      DECOR.filter((d) => g.decor.includes(d.id)).forEach((d, i) => {
+      unitsOf(g.decor).forEach(({ d }, i) => {
         if (d.id !== "coffee" && d.id !== "whiteboard") return;
         const sp = decorSpot(i, L.cols, bottom);
         list.push({ key: d.id as "coffee" | "whiteboard", label: d.id === "coffee" ? "Grab coffee for the team" : "Brainstorm at the whiteboard", x: sp.x * TILE, y: sp.y * TILE, w: TILE, h: TILE });
@@ -114,7 +116,8 @@ export default function Scene() {
   const spots = useMemo(() => {
     const m: Record<string, { x: number; y: number }> = {};
     const bottom = L.rows - 1.2;
-    DECOR.filter((d) => g.decor.includes(d.id)).forEach((d, i) => {
+    unitsOf(g.decor).forEach(({ d, u }, i) => {
+      if (u !== 0) return;
       const sp = decorSpot(i, L.cols, bottom);
       m[d.id] = { x: (sp.x + 0.5) * TILE, y: (sp.y + 0.95) * TILE };
     });
@@ -124,27 +127,35 @@ export default function Scene() {
   const seatOf = (x: number, y: number) => ({ x: x * TILE + 0.9 * TILE, y: y * TILE + 0.78 * TILE });
   const npcs: NpcLive[] = useMemo(() => {
     const list: NpcLive[] = [];
-    const targetFor = (doing: string, seat: { x: number; y: number }): NpcTarget => {
-      const spot = (id: string) => spots[id];
-      if (doing === "eat") { const p = spot("pantry") ?? spot("kitchen"); if (p) return { kind: "spot", ...p }; }
-      if (doing === "washroom") { const p = spot("washroom"); if (p) return { kind: "spot", ...p }; }
-      if (doing === "nap") { const p = spot("lounge"); if (p) return { kind: "spot", ...p }; }
-      if (doing === "coffee") { const p = spot("coffee"); if (p) return { kind: "spot", ...p }; }
-      if (doing === "out_lunch" || doing === "out_wc" || doing === "eat" || doing === "washroom" || doing === "nap") return { kind: "door", ...doorPos };
-      return { kind: "seat", ...seat };
-    };
+    const facOf = (doing: string, where?: string): string | undefined =>
+      doing === "queue_wc" ? "washroom" : doing === "queue_eat" ? EAT_ORDER.find((id) => spots[id]) : where;
+    const raw: { id: string; seat: { x: number; y: number }; doing: string; fac?: string }[] = [];
     if (g.founded) {
       const ps = L.stations.find((s) => s.id === "partner");
-      if (ps) { const seat = seatOf(ps.x, ps.y); const doing = g.partnerVitals?.doing ?? "work"; list.push({ id: "maya", seat, doing, remote: false, target: targetFor(doing, seat) }); }
+      if (ps) raw.push({ id: "maya", seat: seatOf(ps.x, ps.y), doing: g.partnerVitals?.doing ?? "work", fac: facOf(g.partnerVitals?.doing ?? "work", g.partnerVitals?.where) });
     }
     for (const d of L.desks) {
-      const seat = seatOf(d.x, d.y);
-      const doing = d.emp.vitals?.doing ?? "work";
-      list.push({ id: d.emp.id, seat, doing, remote: false, target: targetFor(doing, seat) });
+      const v = d.emp.vitals;
+      raw.push({ id: d.emp.id, seat: seatOf(d.x, d.y), doing: v?.doing ?? "work", fac: facOf(v?.doing ?? "work", v?.where) });
+    }
+    const useIdx: Record<string, number> = {};
+    const queueIdx: Record<string, number> = {};
+    for (const r of raw) {
+      const spot = r.fac ? spots[r.fac] : undefined;
+      let target: NpcTarget;
+      if (r.doing === "queue_wc" || r.doing === "queue_eat") {
+        if (spot) { const k = (queueIdx[r.fac!] = (queueIdx[r.fac!] ?? 0) + 1); target = { kind: "spot", x: spot.x + 0.3 * TILE, y: spot.y - k * 0.55 * TILE }; }
+        else target = { kind: "seat", ...r.seat };
+      } else if (r.doing === "eat" || r.doing === "washroom" || r.doing === "nap" || r.doing === "coffee") {
+        if (spot) { const k = (useIdx[r.fac!] = (useIdx[r.fac!] ?? 0) + 1) - 1; target = { kind: "spot", x: spot.x + ((k % 3) - 1) * 0.42 * TILE, y: spot.y - Math.floor(k / 3) * 0.3 * TILE }; }
+        else target = { kind: "door", ...doorPos };
+      } else if (r.doing === "out_lunch" || r.doing === "out_wc") target = { kind: "door", ...doorPos };
+      else target = { kind: "seat", ...r.seat };
+      list.push({ id: r.id, seat: r.seat, doing: r.doing, remote: false, target });
     }
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [L, spots, g.partnerVitals?.doing, g.team.map((e) => e.vitals?.doing ?? "w").join("|")]);
+  }, [L, spots, g.partnerVitals?.doing, g.partnerVitals?.where, g.team.map((e) => `${e.vitals?.doing ?? "w"}${e.vitals?.where ?? ""}`).join("|")]);
   const npcState = useRef<Record<string, { x: number; y: number; path: { x: number; y: number }[]; key: string; moving: boolean; face: number; hidden: boolean }>>({});
   const npcRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [npcMoving, setNpcMoving] = useState<Record<string, boolean>>({});
@@ -209,12 +220,25 @@ export default function Scene() {
       let dy = (k.d ? 1 : 0) - (k.u ? 1 : 0);
       if (frozen) { dx = 0; dy = 0; }
       const isMoving = dx !== 0 || dy !== 0;
+      const blocked = (x: number, y: number) =>
+        x < 14 - ext.x || x > W + ext.x - 14 || y < TILE * 1.55 || y > H + ext.y - 4 || solids.some((s) => x > s.x - 6 && x < s.x + s.w + 6 && y > s.y - 4 && y < s.y + s.h + 4);
+      // never stay stuck: if you're inside a desk or wall (a desk was added, or you squeezed into a gap), pop out to the nearest free spot
+      if (blocked(pos.current.x, pos.current.y)) {
+        const p0 = pos.current;
+        let freed = false;
+        for (let r = 6; r <= 220 && !freed; r += 6) {
+          for (let a = 0; a < 24 && !freed; a++) {
+            const ang = (a * Math.PI) / 12;
+            const nx = p0.x + Math.cos(ang) * r;
+            const ny = p0.y + Math.sin(ang) * r;
+            if (!blocked(nx, ny)) { p0.x = nx; p0.y = ny; freed = true; }
+          }
+        }
+      }
       if (isMoving) {
         const len = Math.hypot(dx, dy);
         const mx = (dx / len) * SPEED * dt;
         const my = (dy / len) * SPEED * dt;
-        const blocked = (x: number, y: number) =>
-          x < 14 - ext.x || x > W + ext.x - 14 || y < TILE * 1.55 || y > H + ext.y - 4 || solids.some((s) => x > s.x - 8 && x < s.x + s.w + 8 && y > s.y - 4 && y < s.y + s.h + 4);
         const p = pos.current;
         if (!blocked(p.x + mx, p.y)) p.x += mx;
         if (!blocked(p.x, p.y + my)) p.y += my;
@@ -394,6 +418,8 @@ export default function Scene() {
   const title = L.event ? "Startup Meetup" : L.park ? "City Park" : L.home ? (atHome ? "Home" : "Your bedroom") : office.name;
   const blurb = L.event ? "Mingle: press, investors, recruiters and mentors." : L.park ? "Fresh air, a bench and a coffee cart." : L.home ? (atHome ? "Your own bed. The company can wait an hour." : "A bed, a desk, a laptop and a dream.") : office.blurb;
   const bottom = L.rows - 1.2;
+  const rep0 = facilityReport(g);
+  const queues = { wc: rep0[0].queue, eat: rep0[1].queue };
   const prompt = near ? (near.kind === "station" ? `Open ${near.label} dashboard` : near.kind === "person" ? `Talk to ${near.label}` : near.label) : null;
   const showPrompt = !!near && !(near.kind === "station" && dash === near.id);
 
@@ -579,14 +605,17 @@ export default function Scene() {
             ))}
 
             {inOffice &&
-              DECOR.filter((d) => g.decor.includes(d.id)).map((d, i) => {
+              unitsOf(g.decor).map(({ d, u }, i) => {
                 const sp = decorSpot(i, L.cols, bottom);
                 const x = sp.x;
                 const key = d.id === "coffee" ? "coffee" : d.id === "whiteboard" ? "whiteboard" : null;
                 const onCd = key ? (g.cooldowns[key] ?? 0) > g.day : false;
                 return (
-                  <span key={d.id} className={`prop decor still ${onCd ? "cd" : ""} ${near?.kind === "prop" && near.key === key ? "near" : ""}`} style={{ left: x * TILE, top: sp.y * TILE }} title={d.name}>
+                  <span key={`${d.id}-${u}`} className={`prop decor still ${onCd ? "cd" : ""} ${near?.kind === "prop" && near.key === key ? "near" : ""}`} style={{ left: x * TILE, top: sp.y * TILE }} title={`${d.name}${decorUnits(g, d.id) > 1 ? ` ×${decorUnits(g, d.id)}` : ""}`}>
                     <DecorArt id={d.id} />
+                    {u === 0 && (d.id === "washroom" ? queues.wc : EAT_ORDER.includes(d.id) && d.id === EAT_ORDER.find((id) => decorUnits(g, id) > 0) ? queues.eat : 0) > 0 && (
+                      <i className="qbadge">👥 {d.id === "washroom" ? queues.wc : queues.eat} waiting</i>
+                    )}
                   </span>
                 );
               })}

@@ -4,8 +4,8 @@ export interface Look { skin: number; hair: number; hairColor: number; shirt: nu
 export type FounderFocus = "code" | "market" | "support" | "manage";
 export type Background = "engineer" | "marketer" | "heir";
 
-export type Doing = "work" | "eat" | "washroom" | "nap" | "coffee" | "drowsy" | "out_lunch" | "out_wc";
-export interface Vitals { energy: number; hunger: number; bladder: number; doing: Doing; awayLeft: number }
+export type Doing = "work" | "eat" | "washroom" | "nap" | "coffee" | "drowsy" | "out_lunch" | "out_wc" | "queue_wc" | "queue_eat";
+export interface Vitals { energy: number; hunger: number; bladder: number; doing: Doing; awayLeft: number; where?: string }
 
 export interface Employee {
   id: string;
