@@ -220,12 +220,25 @@ export default function Scene() {
       let dy = (k.d ? 1 : 0) - (k.u ? 1 : 0);
       if (frozen) { dx = 0; dy = 0; }
       const isMoving = dx !== 0 || dy !== 0;
+      const blocked = (x: number, y: number) =>
+        x < 14 - ext.x || x > W + ext.x - 14 || y < TILE * 1.55 || y > H + ext.y - 4 || solids.some((s) => x > s.x - 6 && x < s.x + s.w + 6 && y > s.y - 4 && y < s.y + s.h + 4);
+      // never stay stuck: if you're inside a desk or wall (a desk was added, or you squeezed into a gap), pop out to the nearest free spot
+      if (blocked(pos.current.x, pos.current.y)) {
+        const p0 = pos.current;
+        let freed = false;
+        for (let r = 6; r <= 220 && !freed; r += 6) {
+          for (let a = 0; a < 24 && !freed; a++) {
+            const ang = (a * Math.PI) / 12;
+            const nx = p0.x + Math.cos(ang) * r;
+            const ny = p0.y + Math.sin(ang) * r;
+            if (!blocked(nx, ny)) { p0.x = nx; p0.y = ny; freed = true; }
+          }
+        }
+      }
       if (isMoving) {
         const len = Math.hypot(dx, dy);
         const mx = (dx / len) * SPEED * dt;
         const my = (dy / len) * SPEED * dt;
-        const blocked = (x: number, y: number) =>
-          x < 14 - ext.x || x > W + ext.x - 14 || y < TILE * 1.55 || y > H + ext.y - 4 || solids.some((s) => x > s.x - 8 && x < s.x + s.w + 8 && y > s.y - 4 && y < s.y + s.h + 4);
         const p = pos.current;
         if (!blocked(p.x + mx, p.y)) p.x += mx;
         if (!blocked(p.x, p.y + my)) p.y += my;
