@@ -13,6 +13,7 @@ import { useUI } from "@/store/useUI";
 import { EndScreen, StartScreen, Toast } from "./Overlays";
 import Dialogue from "./Dialogue";
 import GoOut from "./GoOut";
+import Laptop from "./Laptop";
 import Hud from "./Hud";
 import HandsOn from "./HandsOn";
 import Scene from "./Scene";
@@ -76,6 +77,7 @@ function Playing() {
       <TreeModal />
       <HandsOn />
       <GoOut />
+      <Laptop />
       <Dialogue />
       <EndScreen />
       <Toast />

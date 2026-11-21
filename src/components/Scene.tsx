@@ -53,7 +53,7 @@ const dist = (px: number, py: number, x: number, y: number, w: number, h: number
 export default function Scene() {
   const g = useG();
   const act = useAct();
-  const { at, dash, setAt, openDash, closeDash, setTalk, place, goOut, setGoOut, setPlace } = useUI();
+  const { at, dash, setAt, openDash, closeDash, setTalk, place, goOut, setGoOut, setPlace, laptop } = useUI();
   const effPlace = g.founded ? place : "office";
   const L = useMemo(() => computeLayout(g, effPlace), [g, effPlace]);
   const inOffice = !L.home && !L.park && !L.event;
@@ -364,7 +364,7 @@ export default function Scene() {
   const press = (k: "u" | "d" | "l" | "r", on: boolean) => { keys.current[k] = on; };
 
   // game camera: fixed zoom that follows you; small rooms are centred
-  live.current = { solids, props, L, g, W, H, frozen: !!g.event || goOut, scale: 1, ext, npcs, doorPos };
+  live.current = { solids, props, L, g, W, H, frozen: !!g.event || goOut || laptop, scale: 1, ext, npcs, doorPos };
   const stageRef = useRef<HTMLElement>(null);
   const [scale, setScale] = useState(1);
   live.current.scale = scale;

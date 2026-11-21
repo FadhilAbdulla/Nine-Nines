@@ -3,11 +3,18 @@ import { create } from "zustand";
 import type { StationId } from "@/game/types";
 import type { Place } from "@/game/layout";
 
+export type LaptopTab = "todo" | "finance" | "analytics" | "devops" | "support";
+
 interface UI {
   at: StationId | null; // station the founder is standing at
   dash: StationId | null; // open dashboard
   talk: string | null; // employee card
   tree: boolean;
+  laptop: boolean; // your laptop is open
+  laptopTab: LaptopTab;
+  openLaptop: (t?: LaptopTab) => void;
+  closeLaptop: () => void;
+  setLaptopTab: (t: LaptopTab) => void;
   place: Place; // where the founder currently is
   goOut: boolean; // 'Where to?' menu at the office door
   setPlace: (p: Place) => void;
@@ -27,6 +34,11 @@ export const useUI = create<UI>((set) => ({
   dash: null,
   talk: null,
   tree: false,
+  laptop: false,
+  laptopTab: "todo",
+  openLaptop: (t) => set((u) => ({ laptop: true, laptopTab: t ?? u.laptopTab })),
+  closeLaptop: () => set({ laptop: false }),
+  setLaptopTab: (laptopTab) => set({ laptopTab }),
   place: "office",
   goOut: false,
   setPlace: (place) => set({ place, goOut: false }),

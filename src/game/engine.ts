@@ -184,6 +184,10 @@ export function tick(s: GameState) {
   s.today = { revenue: d.revenue, expenses: d.burn };
   s.revHistory.push(d.revenue);
   if (s.revHistory.length > 30) s.revHistory.shift();
+  (s.userHistory ??= []).push(d.users);
+  if (s.userHistory.length > 30) s.userHistory.shift();
+  (s.loadHistory ??= []).push(Math.round(d.load * 100));
+  if (s.loadHistory.length > 30) s.loadHistory.shift();
   for (const p of s.products) {
     if (p.status === "live") {
       const idea = IDEAS.find((i) => i.id === p.ideaId)!;
