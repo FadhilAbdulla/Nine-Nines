@@ -77,8 +77,9 @@ export function derive(s: GameState) {
   const prodMult = Math.max(0.5, 1 - overload * 0.07);
 
   const f = s.founderFocus;
+  const aiOn = s.tools.includes("ai");
   const devPts =
-    ((f === "code" ? 4 * (s.background === "engineer" ? 1.25 : 1) : 0) + by("dev").reduce((a, e) => a + e.skill * 0.9 * mf(e), 0)) * (1 + fx.dev) * prodMult;
+    ((f === "code" ? 4 * (s.background === "engineer" ? 1.25 : 1) * (aiOn ? 1.3 : 1) : 0) + by("dev").reduce((a, e) => a + e.skill * 0.9 * mf(e) * (aiOn ? 1.08 : 1), 0)) * (1 + fx.dev) * prodMult;
   const designPts = ((f === "code" ? 1.2 : 0) + by("designer").reduce((a, e) => a + e.skill * 0.8 * mf(e), 0)) * (1 + fx.design) * prodMult;
   const mktPower =
     (1 + by("marketer").reduce((a, e) => a + e.skill * 0.07 * mf(e), 0)) * (1 + fx.mkt) * (f === "market" ? 1.35 : 1) * (s.background === "marketer" ? 1.2 : 1) * prodMult;
@@ -100,12 +101,14 @@ export function derive(s: GameState) {
   const load = users / capacity;
   const salaries = s.team.reduce((a, e) => a + e.salary / 30, 0);
   const rent = OFFICES[s.officeLevel].rent;
-  const subs = s.tools.reduce((a, id) => a + (TOOLS.find((t) => t.id === id)?.monthly ?? 0) / 30, 0);
+  const aiSeats = aiOn ? 1 + by("dev").length : 0;
+  const ai = (aiSeats * AI_SEAT_MONTHLY) / 30;
+  const subs = s.tools.reduce((a, id) => a + (id === "ai" ? 0 : (TOOLS.find((t) => t.id === id)?.monthly ?? 0)) / 30, 0) + ai;
   const servers = users * 0.012 * (1 - fx.server);
   const living = 14;
   const burn = salaries + rent + subs + servers + living;
 
-  return { capacity, load, hasEngineer: by("dev").length > 0, hasOps: by("devops").length > 0, fx, managers, reports, mgmtCap, overload, prodMult, devPts, designPts, mktPower, supportCap, tickets, coverage, revenue, salaries, rent, subs, servers, living, burn, users };
+  return { aiOn, aiSeats, ai, capacity, load, hasEngineer: by("dev").length > 0, hasOps: by("devops").length > 0, fx, managers, reports, mgmtCap, overload, prodMult, devPts, designPts, mktPower, supportCap, tickets, coverage, revenue, salaries, rent, subs, servers, living, burn, users };
 }
 
 // ---------- the daily tick ----------
@@ -334,6 +337,15 @@ export function giveRaise(s: GameState, id: string): string | null {
 
 // ---------- purchases & actions ----------
 
+export const AI_SEAT_MONTHLY = 20;
+
+export function cancelTool(s: GameState, id: string): string | null {
+  if (!s.tools.includes(id)) return null;
+  s.tools = s.tools.filter((x) => x !== id);
+  log(s, `Cancelled ${TOOLS.find((t) => t.id === id)?.name ?? id}.`, "info");
+  return null;
+}
+
 export function deployCost(p: { cost: number }) {
   return 150 + Math.round(p.cost * 0.5);
 }
@@ -376,7 +388,7 @@ export function codeHandsOn(s: GameState, score: number): string | null {
   const p = s.products.find((x) => x.id === s.focusId);
   if (!p) return "Pick a product to focus on first.";
   const d = derive(s);
-  const pts = (6 + 14 * score) * (1 + d.fx.dev);
+  const pts = (6 + 14 * score) * (1 + d.fx.dev) * (d.aiOn ? 1.25 : 1);
   s.cooldowns["hands:code"] = s.day + 2;
   if (p.status === "building") {
     p.progress = Math.min(p.cost, p.progress + pts);
@@ -389,7 +401,7 @@ export function codeHandsOn(s: GameState, score: number): string | null {
     p.updatePts += pts;
     p.bugs = clamp(p.bugs - pts * 0.2, 0, 100);
   } else return "That product is already built.";
-  log(s, `You coded by hand (${Math.round(score * 100)}% clean): +${pts.toFixed(0)} dev points on ${p.name}.`, score >= 0.67 ? "good" : "info");
+  log(s, `You coded${d.aiOn ? " with your AI assistant" : " by hand"} (${Math.round(score * 100)}% clean): +${pts.toFixed(0)} dev points on ${p.name}.`, score >= 0.67 ? "good" : "info");
   return null;
 }
 

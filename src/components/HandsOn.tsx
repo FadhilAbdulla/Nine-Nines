@@ -32,7 +32,7 @@ function Frame({ title, subtitle, emoji, onCancel, children }: { title: string; 
 }
 
 /* ---------- multiple-choice (code, design, support) ---------- */
-function Quiz({ questions: raw, onDone, ticket }: { questions: (Quiz & { from?: string })[]; onDone: (r: Result) => void; ticket?: boolean }) {
+function Quiz({ questions: raw, onDone, ticket, ai }: { questions: (Quiz & { from?: string })[]; onDone: (r: Result) => void; ticket?: boolean; ai?: boolean }) {
   // randomise option order so the answer isn't always in the same slot
   const questions = useMemo(
     () => raw.map((q) => {
@@ -44,6 +44,8 @@ function Quiz({ questions: raw, onDone, ticket }: { questions: (Quiz & { from?: 
   const [i, setI] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [right, setRight] = useState(0);
+  const [hint, setHint] = useState<number | null>(null);
+  useEffect(() => setHint(null), [i]);
   const q = questions[i];
   const answered = picked !== null;
 
@@ -72,9 +74,15 @@ function Quiz({ questions: raw, onDone, ticket }: { questions: (Quiz & { from?: 
       {ticket && q.from && <div className="ticket-from">📨 {q.from}</div>}
       <p className="q-prompt">{q.prompt}</p>
       {q.code && <pre className="codeblock">{q.code}</pre>}
+      {ai && !answered && (
+        <div className="row">
+          <button className="btn" disabled={hint !== null} onClick={() => setHint(q.options.findIndex((_, n) => n !== q.answer))}>🤖 Ask AI assistant</button>
+          {hint !== null && <span className="dim small">AI: "I'm fairly sure option {hint + 1} is wrong."</span>}
+        </div>
+      )}
       <div className="q-options">
         {q.options.map((o, n) => (
-          <button key={n} className={`q-opt ${answered ? (n === q.answer ? "right" : n === picked ? "wrong" : "") : ""}`} disabled={answered} onClick={() => pick(n)}>
+          <button key={n} className={`q-opt ${hint === n && !answered ? "struck" : ""} ${answered ? (n === q.answer ? "right" : n === picked ? "wrong" : "") : ""}`} disabled={answered} onClick={() => pick(n)}>
             <kbd>{n + 1}</kbd> {o || "(leave empty)"}
           </button>
         ))}
@@ -202,7 +210,7 @@ export default function HandsOn() {
     const lines: string[] = [];
     if (kind === "code") {
       act((s) => codeHandsOn(s, r.score));
-      lines.push(`+${(6 + 14 * r.score).toFixed(0)} dev points on ${focus?.name ?? "your product"}`, "Next hands-on coding session in 2 days");
+      lines.push(`+${((6 + 14 * r.score) * (g.tools.includes("ai") ? 1.25 : 1)).toFixed(0)} dev points on ${focus?.name ?? "your product"}${g.tools.includes("ai") ? " (AI-assisted)" : ""}`, "Next hands-on coding session in 2 days");
     } else if (kind === "design") {
       act((s) => designHandsOn(s, r.score));
       lines.push(`Design quality boosted on ${focus?.name ?? "your product"}`, "Next hands-on design session in 3 days");
@@ -233,7 +241,7 @@ export default function HandsOn() {
       {res ? (
         <ResultView score={res.score} lines={res.lines} onClose={close} />
       ) : h.kind === "code" ? (
-        <Quiz questions={code} onDone={(r) => finish("code", r)} />
+        <Quiz questions={code} ai={g.tools.includes("ai")} onDone={(r) => finish("code", r)} />
       ) : h.kind === "design" ? (
         <Quiz questions={design} onDone={(r) => finish("design", r)} />
       ) : h.kind === "support" ? (

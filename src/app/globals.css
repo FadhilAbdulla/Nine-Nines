@@ -450,3 +450,5 @@ kbd { font-family: var(--f-mono); font-size: 11px; background: var(--bg-3); bord
 @media (max-width: 640px) { .deploy-grid { grid-template-columns: 1fr; } }
 .big-score { font-size: 44px; font-weight: 800; }
 .result-view { text-align: center; justify-items: center; }
+
+.q-opt.struck { text-decoration: line-through; opacity: .45; }

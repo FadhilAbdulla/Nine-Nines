@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { CAMPAIGNS, DECOR, FOCUS_INFO, IDEAS, OFFICES, PARTNER, ROLES, TOOLS, type ToolDef } from "@/game/data";
-import { handsOnCooldown, sourceRole, remoteSalary, buyDecor, buyTool, deployCost, deployProduct, derive, designSprint, freeDesks, ideaUnlocked, refreshCandidatesPaid, runCampaign, setFocus, signingFee, startProduct, upgradeOffice, hire } from "@/game/engine";
+import { AI_SEAT_MONTHLY, cancelTool, handsOnCooldown, sourceRole, remoteSalary, buyDecor, buyTool, deployCost, deployProduct, derive, designSprint, freeDesks, ideaUnlocked, refreshCandidatesPaid, runCampaign, setFocus, signingFee, startProduct, upgradeOffice, hire } from "@/game/engine";
 import { STATION_INFO } from "@/game/layout";
 import type { FounderFocus, Role, StationId } from "@/game/types";
 import { dailyRevenueAvg, money, num, totalUsers, valuation } from "@/game/util";
@@ -85,10 +85,10 @@ function JobChoice({ role, mineTitle, mineDesc, mineLabel, onMine, mineDisabled 
   );
 }
 
-function ToolList({ dept }: { dept: ToolDef["dept"] }) {
+function ToolList({ dept, only }: { dept: ToolDef["dept"]; only?: string[] }) {
   const g = useG();
   const act = useAct();
-  const list = TOOLS.filter((t) => t.dept === dept);
+  const list = TOOLS.filter((t) => t.dept === dept && (!only || only.includes(t.id)));
   if (!list.length) return null;
   return (
     <>
@@ -98,13 +98,14 @@ function ToolList({ dept }: { dept: ToolDef["dept"] }) {
         const lock = t.minOffice && g.officeLevel < t.minOffice ? `Needs ${OFFICES[t.minOffice].name}` : null;
         return (
           <div key={t.id} className={`card ${owned ? "owned" : lock ? "locked" : ""}`}>
-            <div className="card-head"><strong>{t.emoji} {t.name}</strong><span className="mono">{owned ? "Owned" : money(t.cost)}</span></div>
+            <div className="card-head"><strong>{t.emoji} {t.name}</strong><span className="mono">{owned ? "Subscribed" : t.cost === 0 ? "Free to start" : money(t.cost)}</span></div>
             <p className="small">{t.desc}</p>
             <div className="row">
               <button className="btn primary" disabled={owned || !!lock || g.cash < t.cost} onClick={() => act((s) => buyTool(s, t.id))}>
                 {owned ? "✓ Installed" : lock ? `🔒 ${lock}` : "Buy"}
               </button>
-              {t.monthly && <span className="dim small">+{money(t.monthly)}/mo</span>}
+              {owned && t.id === "ai" && <button className="btn" onClick={() => act((s) => cancelTool(s, t.id))}>Cancel subscription</button>}
+              {t.monthly && <span className="dim small">+{money(t.monthly)}/mo{t.id === "ai" ? " per seat" : ""}</span>}
             </div>
           </div>
         );
@@ -203,6 +204,7 @@ function Products() {
 
 function EngDash() {
   const g = useG();
+  const d = derive(g);
   const openHands = useUI((u) => u.openHands);
   const cd = handsOnCooldown(g, "code");
   const focus = g.products.find((p) => p.id === g.focusId);
@@ -215,6 +217,7 @@ function EngDash() {
           <p className="small">It's just you. Write the code by hand: you handle the technical details and your score sets the progress. Passive coding also continues while you wait.</p>
           <button className="btn primary" disabled={!can || cd > 0} onClick={() => openHands({ kind: "code" })}>{cd > 0 ? `Resting ${cd}d` : "⌨️ Code a feature"}</button>
         </div>
+        <ToolList dept="eng" only={["ai"]} />
         <Products />
       </>
     );
@@ -544,7 +547,7 @@ function DirectorDash() {
               <div><span className="label">Burn / day</span><b className="mono">{money(d.burn)}</b></div>
               <div><span className="label">Users</span><b className="mono">{num(totalUsers(g))}</b></div>
             </div>
-            <p className="dim small">Burn = salaries {money(d.salaries)} + rent {money(d.rent)} + tools {money(d.subs)} + servers {money(d.servers)} + living {money(d.living)} (per day).</p>
+            <p className="dim small">Burn = salaries {money(d.salaries)} + rent {money(d.rent)} + tools {money(d.subs - d.ai)} + AI subscription {money(d.ai)} + servers {money(d.servers)} + living {money(d.living)} (per day).</p>
           </div>
           <div className="card">
             <div className="label">You are focusing on</div>

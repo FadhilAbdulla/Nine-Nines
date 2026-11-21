@@ -42,6 +42,7 @@ export interface ToolDef {
 }
 
 export const TOOLS: ToolDef[] = [
+  { id: "ai", dept: "eng", name: "AI coding assistant", emoji: "🤖", desc: "Pair-program with AI. Your own coding is 30% faster and hands-on sessions give 25% more progress, with a hint in coding quizzes. Your engineers get +8%. Billed per seat: you plus every application engineer.", cost: 0, monthly: 20, fx: {} },
   { id: "laptop", dept: "eng", name: "Proper laptops", emoji: "💻", desc: "Builds stop taking a coffee break.", cost: 900, fx: { dev: 0.1 } },
   { id: "monitor", dept: "eng", name: "Dual monitors", emoji: "🖥️", desc: "Twice the windows, twice the confidence.", cost: 450, fx: { dev: 0.06, design: 0.06 } },
   { id: "ide", dept: "eng", name: "Pro IDE licenses", emoji: "⌨️", desc: "Autocomplete that actually completes.", cost: 300, monthly: 40, fx: { dev: 0.1 } },
