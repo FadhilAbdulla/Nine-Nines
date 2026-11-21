@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import { sceneAction } from "@/game/engine";
+import { enterNetworking, networkingBlocked } from "@/game/engine";
 import { useUI } from "@/store/useUI";
 import { useAct, useG } from "./ui";
 
@@ -22,7 +22,7 @@ export default function GoOut() {
   const opts = [
     { emoji: "🌳", title: "Walk to the park", sub: "Sit on a bench, grab a $5 coffee, clear your head. Get Refreshed.", run: () => setPlace("park") },
     { emoji: "🏠", title: "Go home", sub: "Take a nap in your own bed. Refreshed, and the team gets a small morale lift.", run: () => setPlace("home") },
-    { emoji: "🤝", title: "Networking meetup ($100)", sub: "Hand out stickers. A few new users and a little reputation.", run: () => { act((s) => sceneAction(s, "door")); setGoOut(false); } },
+    { emoji: "🤝", title: "Startup meetup ($100)", sub: "Walk in and mingle: pitch a journalist, chat with an investor, a recruiter and a mentor.", blocked: networkingBlocked(g), run: () => { act((s) => enterNetworking(s)); setPlace("event"); } },
   ];
   return (
     <div className="goout-back" onClick={() => setGoOut(false)}>
@@ -31,9 +31,9 @@ export default function GoOut() {
         <p className="dim small">Where to? {refreshed ? "You're already Refreshed, but fresh air never hurts." : "A break makes the whole company faster."}</p>
         <div className="goout-opts">
           {opts.map((o) => (
-            <button key={o.title} className="goout-opt" onClick={o.run}>
+            <button key={o.title} className="goout-opt" disabled={!!o.blocked} onClick={o.run}>
               <span className="e">{o.emoji}</span>
-              <span><b>{o.title}</b><small>{o.sub}</small></span>
+              <span><b>{o.title}</b><small>{o.sub}</small>{o.blocked && <small className="why">⚠ {o.blocked}</small>}</span>
             </button>
           ))}
         </div>

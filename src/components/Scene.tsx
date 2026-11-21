@@ -1,22 +1,29 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { DECOR, OFFICES, PARTNER, ROLES } from "@/game/data";
-import { sceneAction } from "@/game/engine";
+import { sceneAction, type NetKey } from "@/game/engine";
 import { computeLayout, STATION_INFO, TILE } from "@/game/layout";
 import type { StationId } from "@/game/types";
 import { useUI } from "@/store/useUI";
 import Avatar, { lookFor, PARTNER_LOOK, ROLE_SHIRT, SHIRTS } from "./Avatar";
+import { Buffet, EventBanner, StandTable, StringLights } from "./EventScene";
 import { CafeTable, LampPost, ParkAmbient, ParkGround, ParkSky } from "./ParkScene";
 import { Bed, Bench, Bookshelf, Cabinet, CoffeeCart, CoffeeTable, DecorArt, Desk, Gate, GlassDoor, Lamp, Plant, Sofa, SvgDefs, Tree, Vending, Wall } from "./Furniture";
 import { useAct, useG } from "./ui";
 
-type PropKey = "coffee" | "whiteboard" | "door" | "bed" | "cart" | "bench" | "exit";
+type PropKey = "coffee" | "whiteboard" | "door" | "bed" | "cart" | "bench" | "exit" | NetKey;
 type Near =
   | { kind: "station"; id: StationId; label: string }
   | { kind: "person"; id: string; label: string }
   | { kind: "prop"; key: PropKey; label: string };
 
 const SPEED = 190; // px per second
+const NET_ATTENDEES: { key: NetKey; name: string; job: string; emoji: string; role: "marketer" | "manager" | "support" | "dev"; x: number; y: number; label: string }[] = [
+  { key: "net_press", name: "Dana", job: "Tech journalist", emoji: "📰", role: "marketer", x: 2.3, y: 3.0, label: "Pitch Dana, the tech journalist" },
+  { key: "net_investor", name: "Priya", job: "Investor", emoji: "💼", role: "manager", x: 6.0, y: 2.2, label: "Chat with Priya, an investor" },
+  { key: "net_recruiter", name: "Marco", job: "Recruiter", emoji: "🧑‍💼", role: "support", x: 9.6, y: 3.2, label: "Talk to Marco, a recruiter" },
+  { key: "net_mentor", name: "Wen", job: "Veteran founder", emoji: "🧙", role: "dev", x: 4.4, y: 5.7, label: "Ask Wen, a veteran founder, for advice" },
+];
 const PARK_TREES: [number, number][] = [[2.6, 1.5], [10.4, 1.4], [11.7, 4.2], [0.6, 5.4], [6.4, 6.3], [3.0, 6.6]];
 const HUD_H = 56; // px of room kept under the HUD (drawn as ceiling/wall)
 const ZONE_COLOR: Record<string, string> = { you: "#38bdf8", partner: "#a78bfa" };
@@ -40,7 +47,7 @@ export default function Scene() {
   const { at, dash, setAt, openDash, closeDash, setTalk, place, goOut, setGoOut, setPlace } = useUI();
   const effPlace = g.founded ? place : "office";
   const L = useMemo(() => computeLayout(g, effPlace), [g, effPlace]);
-  const inOffice = !L.home && !L.park;
+  const inOffice = !L.home && !L.park && !L.event;
   const atHome = L.home && g.founded;
   const office = OFFICES[g.officeLevel];
   const W = L.cols * TILE;
@@ -51,6 +58,10 @@ export default function Scene() {
   // ---- static geometry
   const solids = useMemo(() => {
     const r: { x: number; y: number; w: number; h: number }[] = [];
+    if (L.event) {
+      for (const a of NET_ATTENDEES) r.push({ x: a.x * TILE - 4, y: a.y * TILE + 20, w: TILE * 1.5, h: TILE * 0.9 });
+      r.push({ x: 8.2 * TILE, y: 6.3 * TILE, w: 2.5 * TILE, h: 0.9 * TILE });
+    }
     if (L.park) {
       r.push({ x: 7.4 * TILE, y: 2.5 * TILE, w: 1.8 * TILE, h: 1.2 * TILE }); // coffee cart
       r.push({ x: 8.35 * TILE, y: 5.1 * TILE, w: 3.3 * TILE, h: 2.3 * TILE }); // pond
@@ -70,6 +81,10 @@ export default function Scene() {
       list.push({ key: "cart", label: "Buy a coffee ($5)", x: 7.4 * TILE, y: 2.5 * TILE, w: 1.8 * TILE, h: 1.2 * TILE });
       list.push({ key: "bench", label: "Sit and recharge", x: 3.6 * TILE, y: 4.6 * TILE, w: 1.8 * TILE, h: 0.8 * TILE });
     }
+    if (L.event) {
+      list.push({ key: "exit", label: "Leave the event", x: 0.5 * TILE, y: 0, w: TILE * 1.6, h: TILE * 1.5 });
+      for (const a of NET_ATTENDEES) list.push({ key: a.key, label: a.label, x: a.x * TILE - 8, y: a.y * TILE, w: TILE * 1.6, h: TILE * 1.4 });
+    }
     if (atHome) {
       list.push({ key: "exit", label: "Head back to the office", x: 4.8 * TILE, y: 0, w: TILE * 1.3, h: TILE * 1.5 });
       list.push({ key: "bed", label: "Take a nap at home", x: 6.2 * TILE, y: 2.1 * TILE, w: 66, h: 88 });
@@ -87,7 +102,7 @@ export default function Scene() {
 
   // ---- movement
   const youSt = L.stations.find((s) => s.id === "you")!;
-  const spawn = () => (L.park ? { x: 1.3 * TILE, y: 2.3 * TILE } : atHome ? { x: 5.45 * TILE, y: 1.9 * TILE } : g.founded && g.officeLevel > 0 ? { x: (L.cols - 1) * TILE, y: TILE * 1.9 } : { x: (youSt.x + 0.9) * TILE, y: (youSt.y + 2.45) * TILE });
+  const spawn = () => (L.park || L.event ? { x: 1.3 * TILE, y: 2.3 * TILE } : atHome ? { x: 5.45 * TILE, y: 1.9 * TILE } : g.founded && g.officeLevel > 0 ? { x: (L.cols - 1) * TILE, y: TILE * 1.9 } : { x: (youSt.x + 0.9) * TILE, y: (youSt.y + 2.45) * TILE });
   const pos = useRef(spawn());
   const keys = useRef<Record<string, boolean>>({});
   const foundRef = useRef<HTMLDivElement>(null);
@@ -231,7 +246,7 @@ export default function Scene() {
     else {
       const before = (g.cooldowns[n.key] ?? 0) > g.day;
       act((s) => sceneAction(s, n.key as Exclude<PropKey, "door" | "exit">));
-      if (!before) say(n.key === "coffee" ? "Coffee time ☕" : n.key === "whiteboard" ? "Big ideas! 📝" : n.key === "cart" ? "Fresh coffee ☕✨" : n.key === "bench" ? "Ahh, fresh air 🌿" : "Zzz… 😴");
+      if (!before) say(n.key === "coffee" ? "Coffee time ☕" : n.key === "whiteboard" ? "Big ideas! 📝" : n.key.startsWith("net_") ? "Great chat! 🤝" : n.key === "cart" ? "Fresh coffee ☕✨" : n.key === "bench" ? "Ahh, fresh air 🌿" : "Zzz… 😴");
     }
   };
   const interactRef = useRef(interact);
@@ -283,16 +298,16 @@ export default function Scene() {
     window.addEventListener("resize", fit);
     return () => { ro.disconnect(); window.removeEventListener("resize", fit); };
   }, [W, H]);
-  const title = L.park ? "City Park" : L.home ? (atHome ? "Home" : "Your bedroom") : office.name;
-  const blurb = L.park ? "Fresh air, a bench and a coffee cart." : L.home ? (atHome ? "Your own bed. The company can wait an hour." : "A bed, a desk, a laptop and a dream.") : office.blurb;
+  const title = L.event ? "Startup Meetup" : L.park ? "City Park" : L.home ? (atHome ? "Home" : "Your bedroom") : office.name;
+  const blurb = L.event ? "Mingle: press, investors, recruiters and mentors." : L.park ? "Fresh air, a bench and a coffee cart." : L.home ? (atHome ? "Your own bed. The company can wait an hour." : "A bed, a desk, a laptop and a dream.") : office.blurb;
   const bottom = L.rows - 1.2;
   const prompt = near ? (near.kind === "station" ? `Open ${near.label} dashboard` : near.kind === "person" ? `Talk to ${near.label}` : near.label) : null;
   const showPrompt = !!near && !(near.kind === "station" && dash === near.id);
 
   const Wt = W + ext.x * 2;
   const Ht = ext.top + H + ext.y;
-  const lvlKey = L.park ? "park" : L.home ? "home" : `lvl${g.officeLevel}`;
-  const tone = WALL_TONE[lvlKey] ?? WALL_TONE.home;
+  const lvlKey = L.event ? "event" : L.park ? "park" : L.home ? "home" : `lvl${g.officeLevel}`;
+  const tone = WALL_TONE[lvlKey] ?? (L.event ? (["#4b3d8f", "#2f2760"] as [string, string]) : WALL_TONE.home);
   const wallH = ext.top + TILE * 1.5;
   // window positions in content coordinates (skip the logo and the door)
   const windows: number[] = [];
@@ -337,14 +352,14 @@ export default function Scene() {
     <section className="stage" ref={stageRef} aria-label="Office">
       <SvgDefs />
       <div className="room-label" title={blurb}>
-        <b>{L.park ? "🌳" : L.home ? (atHome ? "🏠" : "🛏️") : office.emoji} {title}</b>
+        <b>{L.event ? "🤝" : L.park ? "🌳" : L.home ? (atHome ? "🏠" : "🛏️") : office.emoji} {title}</b>
         {(g.refreshUntil ?? 0) >= g.day && <i className="refreshed">✨ Refreshed · team works faster</i>}
         <span>{blurb}</span>
       </div>
       <div className="scaler" ref={scalerRef} style={{ width: Wt * scale, height: Ht * scale }}>
-        <div className={`office ${L.park ? "park" : L.home ? "home" : `lvl${g.officeLevel}`}`} style={{ width: Wt, height: Ht, transform: `scale(${scale})`, transformOrigin: "top left", ["--s" as string]: scale } as React.CSSProperties}>
+        <div className={`office ${L.event ? "event" : L.park ? "park" : L.home ? "home" : `lvl${g.officeLevel}`}`} style={{ width: Wt, height: Ht, transform: `scale(${scale})`, transformOrigin: "top left", ["--s" as string]: scale } as React.CSSProperties}>
           <div className={`floor f-${lvlKey}`} />
-          {L.park ? <ParkSky width={Wt} height={wallH} /> : <Wall width={Wt} height={wallH} windows={L.home ? homeWindows : windows} tone={tone} home={L.home} />}
+          {L.park ? <ParkSky width={Wt} height={wallH} /> : <Wall width={Wt} height={wallH} windows={L.home ? homeWindows : L.event ? [] : windows} tone={tone} home={L.home} />}
           <div className="wall-shadow" style={{ top: wallH, width: Wt }} />
 
           <div className="content" style={{ left: ext.x, top: ext.top, width: W, height: H }}>
@@ -390,6 +405,33 @@ export default function Scene() {
                 <Desk accent="#94a3b8" flavor={i % 3} />
               </div>
             ))}
+
+            {L.event && (
+              <>
+                <div className="string-lights" style={{ left: -ext.x, top: -ext.top + wallH - 14, width: Wt }}><StringLights width={Wt} /></div>
+                <EventBanner width={W} />
+                <div className="prop door" style={{ left: 0.5 * TILE, top: 0, width: TILE * 1.6, height: TILE * 1.5 }}>
+                  <GlassDoor />
+                  <small>Exit</small>
+                </div>
+                <span className="prop decor still" style={{ left: 8.1 * TILE, top: 5.7 * TILE, width: 132, height: 60 }}><Buffet /></span>
+                {NET_ATTENDEES.map((a) => {
+                  const done = !!g.flags[a.key];
+                  const isNear = near?.kind === "prop" && near.key === a.key;
+                  return (
+                    <div key={a.key}>
+                      <span className="prop decor still" style={{ left: (a.x + 0.95) * TILE, top: (a.y + 0.25) * TILE, width: 46, height: 58 }}><StandTable /></span>
+                      <div className={`attendee ${isNear ? "near" : ""} ${done ? "done" : ""}`} style={{ left: a.x * TILE - 5, top: a.y * TILE - 6 }}>
+                        {done && <span className="tick">✅</span>}
+                        <Avatar look={lookFor(a.name + a.job, a.role)} role={a.role} size={38} />
+                        <span className="nm">{a.emoji} {a.name}</span>
+                        <span className="role">{a.job}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
 
             {L.park && (
               <>
@@ -485,7 +527,7 @@ export default function Scene() {
                 </button>
               )}
               <Avatar look={g.look} role="you" size={40} legs walking={moving} flip={facing < 0} />
-              <span className="nm">{g.founder.split(" ")[0]}</span>
+              <span className="nm">YOU</span>
             </div>
           </div>
         </div>

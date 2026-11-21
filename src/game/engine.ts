@@ -562,9 +562,49 @@ export function refreshCandidatesPaid(s: GameState): string | null {
 // scene interactions
 const refresh = (s: GameState, days: number) => { s.refreshUntil = Math.max(s.refreshUntil ?? 0, s.day + days); };
 
-export function sceneAction(s: GameState, key: "coffee" | "whiteboard" | "door" | "bed" | "cart" | "bench"): string | null {
+export const NET_PEOPLE = ["press", "investor", "recruiter", "mentor"] as const;
+export type NetKey = `net_${(typeof NET_PEOPLE)[number]}`;
+
+/** Why you can't go to a networking event right now, or null if you can. */
+export function networkingBlocked(s: GameState): string | null {
+  const cd = (s.cooldowns.door ?? 0) - s.day;
+  if (cd > 0) return `Next event in ${cd} day${cd > 1 ? "s" : ""}`;
+  if (s.cash < 100) return "Needs $100 for the ticket";
+  return null;
+}
+
+export function enterNetworking(s: GameState): string | null {
+  const blocked = networkingBlocked(s);
+  if (blocked) return blocked;
+  s.cash -= 100;
+  s.cooldowns.door = s.day + 5;
+  for (const k of NET_PEOPLE) s.flags[`net_${k}`] = false;
+  log(s, "You paid $100 for a ticket to a startup meetup and walked in.", "info");
+  return null;
+}
+
+export function sceneAction(s: GameState, key: "coffee" | "whiteboard" | "door" | "bed" | "cart" | "bench" | NetKey): string | null {
   if ((s.cooldowns[key] ?? 0) > s.day) return "Not right now. Try again in a few days.";
   const d = derive(s);
+  if (key.startsWith("net_")) {
+    if (s.flags[key]) return "You've already chatted with them. Try someone else.";
+    s.flags[key] = true;
+    const live = s.products.find((x) => x.status === "live");
+    if (key === "net_press") {
+      if (live) live.users += 40 + Math.round(s.rep * 4);
+      log(s, `A tech journalist loved your pitch and wrote about ${live?.name ?? "your startup"}. New users are signing up.`, "good");
+    } else if (key === "net_investor") {
+      s.rep = clamp(s.rep + 1.2, 0, 100);
+      log(s, "An investor liked your story and told her friends. Your reputation grows.", "good");
+    } else if (key === "net_recruiter") {
+      s.nextCandidateDay = s.day;
+      log(s, "A recruiter shared a list of strong candidates. Fresh applicants arrive soon.", "good");
+    } else {
+      refresh(s, 5);
+      log(s, "A veteran founder gave you great advice over a coffee. You leave Refreshed.", "good");
+    }
+    return null;
+  }
   if (key === "coffee") {
     s.cooldowns[key] = s.day + 4;
     for (const e of s.team) e.morale = clamp(e.morale + 6, 0, 100);
